@@ -1,5 +1,6 @@
 -- ============================================
--- Reports by Zeniva Digital — Phase 1 Schema
+-- Reports by Zeniva Digital — Full Schema
+-- Safe to re-run (uses IF NOT EXISTS + DROP/CREATE for policies)
 -- Run this in the Supabase SQL Editor
 -- ============================================
 
@@ -187,6 +188,15 @@ create table if not exists reports (
   -- Facebook & Google (stored as JSON)
   fb_data text,
   google_data text,
+  -- Meta Ads aggregates
+  meta_spend numeric(10,2),
+  meta_impressions bigint,
+  meta_reach bigint,
+  meta_clicks bigint,
+  meta_ctr numeric(6,4),
+  meta_cpm numeric(10,4),
+  meta_conversions integer,
+  meta_roas numeric(8,4),
   -- AI insights
   ai_summary text,
   ai_ig_insight text,
@@ -222,26 +232,37 @@ alter table reports enable row level security;
 alter table profiles enable row level security;
 
 -- Profiles
+drop policy if exists "profiles_select" on profiles;
 create policy "profiles_select" on profiles for select using (auth.uid() = id);
+drop policy if exists "profiles_update" on profiles;
 create policy "profiles_update" on profiles for update using (auth.uid() = id);
 
 -- Clients
+drop policy if exists "clients_select" on clients;
 create policy "clients_select" on clients for select using (auth.uid() = owner_id);
+drop policy if exists "clients_insert" on clients;
 create policy "clients_insert" on clients for insert with check (auth.uid() = owner_id);
+drop policy if exists "clients_update" on clients;
 create policy "clients_update" on clients for update using (auth.uid() = owner_id);
+drop policy if exists "clients_delete" on clients;
 create policy "clients_delete" on clients for delete using (auth.uid() = owner_id);
 
 -- Campaigns (via parent client ownership)
+drop policy if exists "campaigns_select" on campaigns;
 create policy "campaigns_select" on campaigns for select
   using (client_id in (select id from clients where owner_id = auth.uid()));
+drop policy if exists "campaigns_insert" on campaigns;
 create policy "campaigns_insert" on campaigns for insert
   with check (client_id in (select id from clients where owner_id = auth.uid()));
+drop policy if exists "campaigns_update" on campaigns;
 create policy "campaigns_update" on campaigns for update
   using (client_id in (select id from clients where owner_id = auth.uid()));
+drop policy if exists "campaigns_delete" on campaigns;
 create policy "campaigns_delete" on campaigns for delete
   using (client_id in (select id from clients where owner_id = auth.uid()));
 
 -- Campaign Metrics (via campaign → client → owner chain)
+drop policy if exists "metrics_select" on campaign_metrics;
 create policy "metrics_select" on campaign_metrics for select
   using (campaign_id in (
     select c.id from campaigns c
@@ -250,28 +271,38 @@ create policy "metrics_select" on campaign_metrics for select
   ));
 
 -- Ad Copy
+drop policy if exists "ad_copy_select" on ad_copy;
 create policy "ad_copy_select" on ad_copy for select
   using (client_id in (select id from clients where owner_id = auth.uid()));
+drop policy if exists "ad_copy_insert" on ad_copy;
 create policy "ad_copy_insert" on ad_copy for insert
   with check (client_id in (select id from clients where owner_id = auth.uid()));
+drop policy if exists "ad_copy_update" on ad_copy;
 create policy "ad_copy_update" on ad_copy for update
   using (client_id in (select id from clients where owner_id = auth.uid()));
 
 -- IG Account Metrics
 alter table ig_account_metrics enable row level security;
+drop policy if exists "ig_account_metrics_select" on ig_account_metrics;
 create policy "ig_account_metrics_select" on ig_account_metrics for select
   using (client_id in (select id from clients where owner_id = auth.uid()));
+drop policy if exists "ig_account_metrics_insert" on ig_account_metrics;
 create policy "ig_account_metrics_insert" on ig_account_metrics for insert
   with check (client_id in (select id from clients where owner_id = auth.uid()));
 
 -- IG Media Metrics
 alter table ig_media_metrics enable row level security;
+drop policy if exists "ig_media_metrics_select" on ig_media_metrics;
 create policy "ig_media_metrics_select" on ig_media_metrics for select
   using (client_id in (select id from clients where owner_id = auth.uid()));
+drop policy if exists "ig_media_metrics_insert" on ig_media_metrics;
 create policy "ig_media_metrics_insert" on ig_media_metrics for insert
   with check (client_id in (select id from clients where owner_id = auth.uid()));
 
 -- Reports
+drop policy if exists "reports_select" on reports;
 create policy "reports_select" on reports for select using (auth.uid() = owner_id);
+drop policy if exists "reports_insert" on reports;
 create policy "reports_insert" on reports for insert with check (auth.uid() = owner_id);
+drop policy if exists "reports_update" on reports;
 create policy "reports_update" on reports for update using (auth.uid() = owner_id);

@@ -57,7 +57,12 @@ export async function autoGenerateReport(req, res, next) {
       return res.status(400).json({ message: 'month and year are required' });
     }
 
+    console.log(`[AutoGenerate] Starting for client=${clientId}, month=${month}, year=${year}`);
     const result = await generateReportService(req.user.id, clientId, month, parseInt(year));
+    console.log(`[AutoGenerate] Success — report id=${result.report?.id}`);
     res.status(201).json(result);
-  } catch (e) { next(e); }
+  } catch (e) {
+    console.error(`[AutoGenerate] FAILED:`, e.message || e);
+    next(e);
+  }
 }
