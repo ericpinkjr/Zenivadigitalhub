@@ -6,10 +6,91 @@ import { ApiError } from '../utils/apiError.js';
 const claude = ANTHROPIC_API_KEY ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) : null;
 
 /**
- * Generate ad copy variants for a client using their creative brief.
- * Returns 3-5 headline/primary_text/cta combos, saves them to ad_copy table.
+ * Build a type-specific prompt for CopyForge.
  */
-export async function generateCopy(ownerId, clientId, { campaignId, campaignGoal, currentOffer, tone } = {}) {
+function buildPrompt(copyType, client, { campaignGoal, currentOffer, tone }) {
+  const brief = `CLIENT BRIEF:
+- Business: ${client.name}
+- Industry: ${client.industry || 'General'}
+- Location: ${client.location || 'Not specified'}
+- Target Audience: ${client.target_audience || 'General audience'}
+- Brand Voice: ${client.brand_voice_notes || 'Professional and engaging'}
+${currentOffer ? `- Current Offer: ${currentOffer}` : ''}
+${campaignGoal ? `- Campaign Goal: ${campaignGoal}` : ''}
+${tone ? `- Desired Tone: ${tone}` : ''}`;
+
+  switch (copyType) {
+    case 'ig_caption':
+      return `You are an expert Instagram content strategist. Generate Instagram caption variants for this client.
+
+${brief}
+
+REQUIREMENTS:
+- Generate exactly 5 caption variants
+- Each variant has: headline (the hook/first line, max 60 chars), primary_text (the full caption body, 100-300 chars), and cta (a call to action line)
+- Include 5-10 relevant hashtags at the end of primary_text
+- Make each variant distinct in style (storytelling, educational, behind-the-scenes, promotional, engagement-focused)
+- Use line breaks and emojis naturally where appropriate
+- The hook line should stop the scroll
+
+Return ONLY valid JSON array (no markdown):
+[{"headline":"...","primary_text":"...","cta":"..."},...]`;
+
+    case 'tiktok_caption':
+      return `You are an expert TikTok content strategist. Generate TikTok caption variants for this client.
+
+${brief}
+
+REQUIREMENTS:
+- Generate exactly 5 caption variants
+- Each variant has: headline (the hook, max 50 chars), primary_text (short punchy caption, max 150 chars), and cta (call to action)
+- Include 3-5 trending/relevant hashtags in primary_text
+- Make each variant distinct: trending format, educational, controversial take, storytelling, relatable humor
+- Keep it conversational and native to TikTok culture
+- The hook should create curiosity or FOMO
+
+Return ONLY valid JSON array (no markdown):
+[{"headline":"...","primary_text":"...","cta":"..."},...]`;
+
+    case 'email_campaign':
+      return `You are an expert email marketing copywriter. Generate email campaign variants for this client.
+
+${brief}
+
+REQUIREMENTS:
+- Generate exactly 5 email variants
+- Each variant has: headline (the subject line, max 60 chars), primary_text (the email body, 200-500 chars), cta (button text), and subject_line (same as headline)
+- Make each variant distinct: urgency-driven, value-focused, storytelling, social proof, curiosity gap
+- Write compelling preview text in the first line of primary_text
+- Structure the body with a clear problem → solution → action flow
+- Keep the tone professional but personable
+
+Return ONLY valid JSON array (no markdown):
+[{"headline":"...","primary_text":"...","cta":"...","subject_line":"..."},...]`;
+
+    default: // meta_ad
+      return `You are an expert Meta Ads copywriter. Generate ad copy variants for this client.
+
+${brief}
+
+REQUIREMENTS:
+- Generate exactly 5 ad copy variants
+- Each variant has: headline (max 40 chars), primary_text (max 125 chars for feed), and cta (one of: Learn More, Shop Now, Sign Up, Book Now, Get Offer, Contact Us, Get Quote, Subscribe)
+- Make each variant distinct in angle/approach
+- Use the brand voice consistently
+- Include a clear value proposition
+- Variants should range from direct/urgent to storytelling/emotional
+
+Return ONLY valid JSON array (no markdown):
+[{"headline":"...","primary_text":"...","cta":"..."},...]`;
+  }
+}
+
+/**
+ * Generate copy variants for a client using their creative brief.
+ * Supports multiple copy types: meta_ad, ig_caption, tiktok_caption, email_campaign.
+ */
+export async function generateCopy(ownerId, clientId, { campaignId, campaignGoal, currentOffer, tone, copyType = 'meta_ad' } = {}) {
   // 1. Get client brief
   const { data: client, error: clientErr } = await supabaseAdmin
     .from('clients')
@@ -28,34 +109,13 @@ export async function generateCopy(ownerId, clientId, { campaignId, campaignGoal
     throw new ApiError(500, 'Anthropic API key not configured');
   }
 
-  // 2. Build the prompt
-  const prompt = `You are an expert Meta Ads copywriter. Generate ad copy variants for this client.
-
-CLIENT BRIEF:
-- Business: ${client.name}
-- Industry: ${client.industry || 'General'}
-- Location: ${client.location || 'Not specified'}
-- Target Audience: ${client.target_audience || 'General audience'}
-- Brand Voice: ${client.brand_voice_notes || 'Professional and engaging'}
-${currentOffer ? `- Current Offer: ${currentOffer}` : ''}
-${campaignGoal ? `- Campaign Goal: ${campaignGoal}` : ''}
-${tone ? `- Desired Tone: ${tone}` : ''}
-
-REQUIREMENTS:
-- Generate exactly 5 ad copy variants
-- Each variant has: headline (max 40 chars), primary_text (max 125 chars for feed), and cta (one of: Learn More, Shop Now, Sign Up, Book Now, Get Offer, Contact Us, Get Quote, Subscribe)
-- Make each variant distinct in angle/approach
-- Use the brand voice consistently
-- Include a clear value proposition
-- Variants should range from direct/urgent to storytelling/emotional
-
-Return ONLY valid JSON array (no markdown):
-[{"headline":"...","primary_text":"...","cta":"..."},...]`;
+  // 2. Build type-specific prompt
+  const prompt = buildPrompt(copyType, client, { campaignGoal, currentOffer, tone });
 
   // 3. Call Claude
   const response = await claude.messages.create({
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 1024,
+    max_tokens: 2048,
     messages: [{ role: 'user', content: prompt }],
   });
 
@@ -75,9 +135,12 @@ Return ONLY valid JSON array (no markdown):
   const rows = variants.map(v => ({
     client_id: clientId,
     campaign_id: campaignId || null,
+    copy_type: copyType,
     headline: v.headline || '',
     primary_text: v.primary_text || '',
     cta: v.cta || 'Learn More',
+    subject_line: v.subject_line || null,
+    body_text: v.body_text || null,
     status: 'draft',
   }));
 
@@ -94,7 +157,7 @@ Return ONLY valid JSON array (no markdown):
 /**
  * List all ad copy for a client, optionally filtered by status or campaign.
  */
-export async function listCopy(ownerId, clientId, { status, campaignId } = {}) {
+export async function listCopy(ownerId, clientId, { status, campaignId, copyType } = {}) {
   // Verify ownership
   const { error: clientErr } = await supabaseAdmin
     .from('clients')
@@ -113,6 +176,7 @@ export async function listCopy(ownerId, clientId, { status, campaignId } = {}) {
 
   if (status) query = query.eq('status', status);
   if (campaignId) query = query.eq('campaign_id', campaignId);
+  if (copyType) query = query.eq('copy_type', copyType);
 
   const { data, error } = await query;
   if (error) throw new ApiError(500, error.message);
@@ -142,7 +206,7 @@ export async function updateCopy(ownerId, copyId, updates) {
 
   if (clientErr) throw new ApiError(403, 'Not authorized');
 
-  const allowed = ['headline', 'primary_text', 'cta', 'status', 'campaign_id'];
+  const allowed = ['headline', 'primary_text', 'cta', 'status', 'campaign_id', 'subject_line', 'body_text'];
   const filtered = Object.fromEntries(
     Object.entries(updates).filter(([k]) => allowed.includes(k))
   );
@@ -185,9 +249,12 @@ export async function duplicateCopy(ownerId, copyId) {
     .insert({
       client_id: original.client_id,
       campaign_id: original.campaign_id,
+      copy_type: original.copy_type || 'meta_ad',
       headline: original.headline,
       primary_text: original.primary_text,
       cta: original.cta,
+      subject_line: original.subject_line || null,
+      body_text: original.body_text || null,
       status: 'draft',
     })
     .select()

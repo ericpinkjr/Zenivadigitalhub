@@ -3,8 +3,8 @@ import * as copyService from '../services/copyService.js';
 export async function generateCopy(req, res, next) {
   try {
     const { clientId } = req.params;
-    const { campaignId, campaignGoal, currentOffer, tone } = req.body;
-    const data = await copyService.generateCopy(req.user.id, clientId, { campaignId, campaignGoal, currentOffer, tone });
+    const { campaignId, campaignGoal, currentOffer, tone, copyType } = req.body;
+    const data = await copyService.generateCopy(req.user.id, clientId, { campaignId, campaignGoal, currentOffer, tone, copyType });
     res.status(201).json(data);
   } catch (e) { next(e); }
 }
@@ -12,8 +12,8 @@ export async function generateCopy(req, res, next) {
 export async function listCopy(req, res, next) {
   try {
     const { clientId } = req.params;
-    const { status, campaign_id } = req.query;
-    const data = await copyService.listCopy(req.user.id, clientId, { status, campaignId: campaign_id });
+    const { status, campaign_id, copy_type } = req.query;
+    const data = await copyService.listCopy(req.user.id, clientId, { status, campaignId: campaign_id, copyType: copy_type });
     res.json(data);
   } catch (e) { next(e); }
 }

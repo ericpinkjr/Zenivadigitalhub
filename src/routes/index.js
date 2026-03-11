@@ -10,6 +10,12 @@ import copyRoutes from './copy.js';
 import taskRoutes from './tasks.js';
 import calendarRoutes from './calendar.js';
 import approvalRoutes from './approvals.js';
+import leadsRoutes from './leads.js';
+import interactionsRoutes from './interactions.js';
+import proposalsRoutes from './proposals.js';
+import outboundRoutes from './outbound.js';
+import onboardingRoutes from './onboarding.js';
+import dashboardRoutes from './dashboard.js';
 
 const router = Router();
 
@@ -24,5 +30,11 @@ router.use('/copy', copyRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/calendar', calendarRoutes);
 router.use('/approvals', approvalRoutes);
+router.use('/leads', leadsRoutes);
+router.use('/interactions', interactionsRoutes);
+router.use('/proposals', proposalsRoutes);
+router.use('/outbound', outboundRoutes);
+router.use('/onboarding', onboardingRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 export default router;

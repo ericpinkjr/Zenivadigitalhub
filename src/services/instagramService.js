@@ -2,6 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { META_ACCESS_TOKEN } from '../config/env.js';
 import { metaFetch, asyncPool } from './metaService.js';
 import { ApiError } from '../utils/apiError.js';
+import { parseAndStoreHashtags } from './hashtagService.js';
 
 /**
  * Discover the Instagram Business Account linked to a Meta ad account.
@@ -298,10 +299,20 @@ export async function syncClientInstagram(clientId) {
     }
   });
 
+  // 8. Parse and store hashtag performance from synced captions
+  let hashtagsParsed = 0;
+  try {
+    const hashtagResult = await parseAndStoreHashtags(clientId);
+    hashtagsParsed = hashtagResult.hashtags_parsed;
+  } catch (err) {
+    console.error('[IG] Hashtag parsing failed:', err.message);
+  }
+
   return {
     ig_username: profile.username,
     followers_count: profile.followers_count,
     days_synced: daysSynced,
     media_synced: mediaSynced,
+    hashtags_parsed: hashtagsParsed,
   };
 }
