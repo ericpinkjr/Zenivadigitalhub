@@ -5,9 +5,16 @@ export async function getDashboardSummary(ownerId) {
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = today.substring(0, 7); // "2026-03"
 
-  // Run all queries in parallel
+  // First fetch client IDs (needed for onboarding query)
+  const clientsResult = await supabaseAdmin
+    .from('clients')
+    .select('id', { count: 'exact' })
+    .eq('owner_id', ownerId);
+
+  const clientIds = (clientsResult.data || []).map(c => c.id);
+
+  // Run remaining queries in parallel
   const [
-    clientsResult,
     leadsResult,
     followUpsResult,
     onboardingResult,
@@ -15,12 +22,6 @@ export async function getDashboardSummary(ownerId) {
     outboundResult,
     reportsResult,
   ] = await Promise.all([
-    // Active clients count
-    supabaseAdmin
-      .from('clients')
-      .select('id', { count: 'exact', head: true })
-      .eq('owner_id', ownerId),
-
     // Leads by status
     supabaseAdmin
       .from('leads')
@@ -37,16 +38,13 @@ export async function getDashboardSummary(ownerId) {
       .lte('follow_up_date', today),
 
     // Clients in onboarding (not complete)
-    supabaseAdmin
-      .from('onboarding_checklists')
-      .select('client_id')
-      .eq('onboarding_complete', false)
-      .in('client_id',
-        supabaseAdmin
-          .from('clients')
-          .select('id')
-          .eq('owner_id', ownerId)
-      ),
+    clientIds.length > 0
+      ? supabaseAdmin
+          .from('onboarding_checklists')
+          .select('client_id')
+          .eq('onboarding_complete', false)
+          .in('client_id', clientIds)
+      : Promise.resolve({ data: [] }),
 
     // Accepted proposals for MRR
     supabaseAdmin
