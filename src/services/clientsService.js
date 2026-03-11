@@ -102,3 +102,35 @@ export async function getClientCampaignMetrics(ownerId, clientId, { startDate, e
   if (error) throw new ApiError(500, error.message);
   return data;
 }
+
+export async function getClientIgMetrics(ownerId, clientId, { startDate, endDate } = {}) {
+  await getClientById(ownerId, clientId);
+
+  let accountQuery = supabaseAdmin
+    .from('ig_account_metrics')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('date', { ascending: true });
+  if (startDate) accountQuery = accountQuery.gte('date', startDate);
+  if (endDate) accountQuery = accountQuery.lte('date', endDate);
+  const { data: account, error: accErr } = await accountQuery;
+  if (accErr) throw new ApiError(500, accErr.message);
+
+  let mediaQuery = supabaseAdmin
+    .from('ig_media_metrics')
+    .select('*')
+    .eq('client_id', clientId)
+    .order('like_count', { ascending: false })
+    .limit(20);
+  if (startDate) mediaQuery = mediaQuery.gte('timestamp', startDate);
+  if (endDate) mediaQuery = mediaQuery.lte('timestamp', endDate);
+  const { data: media, error: mediaErr } = await mediaQuery;
+  if (mediaErr) throw new ApiError(500, mediaErr.message);
+
+  const latest = account && account.length > 0 ? account[account.length - 1] : null;
+  return {
+    account: account || [],
+    media: media || [],
+    profile: latest ? { followers_count: latest.followers_count, media_count: latest.media_count } : null,
+  };
+}

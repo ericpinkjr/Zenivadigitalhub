@@ -53,3 +53,15 @@ export async function getCampaignMetrics(req, res, next) {
     res.json(data);
   } catch (err) { next(err); }
 }
+
+export async function getIgMetrics(req, res, next) {
+  try {
+    const { start_date, end_date } = req.query;
+    const data = await clientsService.getClientIgMetrics(
+      req.user.id,
+      req.params.id,
+      { startDate: start_date, endDate: end_date }
+    );
+    res.json(data);
+  } catch (err) { next(err); }
+}

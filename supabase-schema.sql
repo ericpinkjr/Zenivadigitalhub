@@ -43,6 +43,7 @@ create table if not exists clients (
   target_audience text,
   brand_voice_notes text,
   meta_ad_account_id text,
+  ig_business_account_id text,
   brand_color text default '#FF6B35',
   logo_url text,
   ig_handle text,
@@ -93,6 +94,41 @@ create table if not exists ad_copy (
   cta text,
   status text default 'draft' check (status in ('draft', 'approved', 'live')),
   created_at timestamptz default now()
+);
+
+-- ── Instagram Account Metrics (daily organic data from IG Graph API) ──
+create table if not exists ig_account_metrics (
+  id uuid default gen_random_uuid() primary key,
+  client_id uuid references clients(id) on delete cascade not null,
+  date date not null,
+  followers_count integer,
+  impressions integer,
+  reach integer,
+  profile_views integer,
+  website_clicks integer,
+  follower_count_delta integer,
+  media_count integer,
+  synced_at timestamptz default now(),
+  unique(client_id, date)
+);
+
+-- ── Instagram Media Metrics (per-post organic data) ──
+create table if not exists ig_media_metrics (
+  id uuid default gen_random_uuid() primary key,
+  client_id uuid references clients(id) on delete cascade not null,
+  ig_media_id text not null,
+  timestamp timestamptz,
+  media_type text,
+  caption text,
+  permalink text,
+  like_count integer,
+  comments_count integer,
+  impressions integer,
+  reach integer,
+  saved integer,
+  shares integer,
+  synced_at timestamptz default now(),
+  unique(client_id, ig_media_id)
 );
 
 -- ── Reports ──
@@ -169,6 +205,9 @@ create index if not exists idx_campaigns_client on campaigns(client_id);
 create index if not exists idx_campaign_metrics_campaign on campaign_metrics(campaign_id);
 create index if not exists idx_campaign_metrics_date on campaign_metrics(date);
 create index if not exists idx_ad_copy_client on ad_copy(client_id);
+create index if not exists idx_ig_account_metrics_client_date on ig_account_metrics(client_id, date);
+create index if not exists idx_ig_media_client on ig_media_metrics(client_id);
+create index if not exists idx_ig_media_timestamp on ig_media_metrics(timestamp);
 create index if not exists idx_reports_client on reports(client_id);
 
 -- ============================================
@@ -217,6 +256,20 @@ create policy "ad_copy_insert" on ad_copy for insert
   with check (client_id in (select id from clients where owner_id = auth.uid()));
 create policy "ad_copy_update" on ad_copy for update
   using (client_id in (select id from clients where owner_id = auth.uid()));
+
+-- IG Account Metrics
+alter table ig_account_metrics enable row level security;
+create policy "ig_account_metrics_select" on ig_account_metrics for select
+  using (client_id in (select id from clients where owner_id = auth.uid()));
+create policy "ig_account_metrics_insert" on ig_account_metrics for insert
+  with check (client_id in (select id from clients where owner_id = auth.uid()));
+
+-- IG Media Metrics
+alter table ig_media_metrics enable row level security;
+create policy "ig_media_metrics_select" on ig_media_metrics for select
+  using (client_id in (select id from clients where owner_id = auth.uid()));
+create policy "ig_media_metrics_insert" on ig_media_metrics for insert
+  with check (client_id in (select id from clients where owner_id = auth.uid()));
 
 -- Reports
 create policy "reports_select" on reports for select using (auth.uid() = owner_id);

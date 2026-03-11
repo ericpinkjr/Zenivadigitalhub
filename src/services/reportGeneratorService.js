@@ -6,8 +6,8 @@ const MONTHS = ['January','February','March','April','May','June','July','August
 
 /**
  * Auto-generate a report for a client by pulling campaign_metrics
- * from Supabase for the given month/year, aggregating them, sending
- * to Claude for a narrative, and saving the report.
+ * and ig_account_metrics/ig_media_metrics from Supabase, aggregating them,
+ * sending to Claude for a narrative, and saving the report.
  */
 export async function generateReport(ownerId, clientId, month, year) {
   // 1. Get client
@@ -45,7 +45,7 @@ export async function generateReport(ownerId, clientId, month, year) {
     .select('id, name, objective, budget, status')
     .eq('client_id', clientId);
 
-  // 5. Get metrics for the month
+  // 5. Get ad campaign metrics for the month
   let metrics = [];
   if (campaigns && campaigns.length > 0) {
     const campaignIds = campaigns.map(c => c.id);
@@ -58,7 +58,7 @@ export async function generateReport(ownerId, clientId, month, year) {
     metrics = metricsData || [];
   }
 
-  // 6. Aggregate metrics
+  // 6. Aggregate ad metrics
   const agg = {
     total_spend: 0,
     total_impressions: 0,
@@ -82,7 +82,81 @@ export async function generateReport(ownerId, clientId, month, year) {
     ? metrics.reduce((s, m) => s + (parseFloat(m.roas) || 0) * (parseFloat(m.spend) || 0), 0) / agg.total_spend
     : 0;
 
-  // 7. Get previous month's report for comparison
+  // 7. Get Instagram organic account metrics for the month
+  const { data: igMetrics } = await supabaseAdmin
+    .from('ig_account_metrics')
+    .select('*')
+    .eq('client_id', clientId)
+    .gte('date', startDate)
+    .lt('date', endDate)
+    .order('date', { ascending: true });
+
+  const igAgg = {
+    ig_followers: 0,
+    ig_reach: 0,
+    ig_views: 0,
+    ig_profile_visits: 0,
+    ig_website_taps: 0,
+  };
+
+  if (igMetrics && igMetrics.length > 0) {
+    for (const m of igMetrics) {
+      igAgg.ig_reach += m.reach || 0;
+      igAgg.ig_views += m.impressions || 0;
+      igAgg.ig_profile_visits += m.profile_views || 0;
+      igAgg.ig_website_taps += m.website_clicks || 0;
+    }
+    // Followers: take the last day's count
+    igAgg.ig_followers = igMetrics[igMetrics.length - 1].followers_count || 0;
+    // Compute new followers as difference between last and first day
+    const firstFollowers = igMetrics[0].followers_count || 0;
+    igAgg.ig_new_followers = igAgg.ig_followers - firstFollowers;
+  }
+
+  // 8. Get Instagram media metrics for the month (top content)
+  const { data: igMedia } = await supabaseAdmin
+    .from('ig_media_metrics')
+    .select('*')
+    .eq('client_id', clientId)
+    .gte('timestamp', startDate)
+    .lt('timestamp', endDate)
+    .order('like_count', { ascending: false });
+
+  const igMediaAgg = {
+    ig_likes: 0,
+    ig_comments: 0,
+    ig_saves: 0,
+    ig_shares: 0,
+    ig_posts: 0,
+    ig_reels_published: 0,
+  };
+
+  const topPosts = [];
+  if (igMedia && igMedia.length > 0) {
+    for (const m of igMedia) {
+      igMediaAgg.ig_likes += m.like_count || 0;
+      igMediaAgg.ig_comments += m.comments_count || 0;
+      igMediaAgg.ig_saves += m.saved || 0;
+      igMediaAgg.ig_shares += m.shares || 0;
+      if (m.media_type === 'VIDEO') igMediaAgg.ig_reels_published++;
+      else igMediaAgg.ig_posts++;
+
+      if (topPosts.length < 5) {
+        topPosts.push({
+          platform: 'ig',
+          url: m.permalink,
+          caption: m.caption?.substring(0, 120) || '',
+          likes: m.like_count || 0,
+          comments: m.comments_count || 0,
+          reach: m.reach || 0,
+          saves: m.saved || 0,
+          type: m.media_type,
+        });
+      }
+    }
+  }
+
+  // 9. Get previous month's report for comparison
   const prevMonthIdx = monthIdx === 0 ? 11 : monthIdx - 1;
   const prevYear = monthIdx === 0 ? year - 1 : year;
   const prevMonth = MONTHS[prevMonthIdx];
@@ -95,7 +169,7 @@ export async function generateReport(ownerId, clientId, month, year) {
     .eq('year', prevYear)
     .single();
 
-  // 8. Build current data object for Claude (merging campaign metrics + any social data)
+  // 10. Build current data object for Claude
   const current = {
     month,
     year,
@@ -110,15 +184,28 @@ export async function generateReport(ownerId, clientId, month, year) {
     meta_roas: agg.avg_roas.toFixed(2),
     meta_campaigns_active: campaigns ? campaigns.filter(c => c.status === 'active').length : 0,
     meta_total_campaigns: campaigns ? campaigns.length : 0,
+    // Instagram organic metrics
+    ig_followers: igAgg.ig_followers,
+    ig_new_followers: igAgg.ig_new_followers || 0,
+    ig_reach: igAgg.ig_reach,
+    ig_views: igAgg.ig_views,
+    ig_profile_visits: igAgg.ig_profile_visits,
+    ig_website_taps: igAgg.ig_website_taps,
+    ig_likes: igMediaAgg.ig_likes,
+    ig_comments: igMediaAgg.ig_comments,
+    ig_shares: igMediaAgg.ig_shares,
+    ig_saves: igMediaAgg.ig_saves,
+    ig_posts: igMediaAgg.ig_posts,
+    ig_reels_published: igMediaAgg.ig_reels_published,
   };
 
-  // 9. Generate narrative via Claude
+  // 11. Generate narrative via Claude
   const narrative = await generateNarrative(client.name, current, prevReport, client.industry);
 
-  // 10. Build slug
+  // 12. Build slug
   const slug = `${client.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${month.toLowerCase()}-${year}`;
 
-  // 11. Save report
+  // 13. Save report
   const reportPayload = {
     client_id: clientId,
     owner_id: ownerId,
@@ -126,13 +213,16 @@ export async function generateReport(ownerId, clientId, month, year) {
     year: parseInt(year),
     published: false,
     share_slug: slug,
+    platforms: JSON.stringify(['ig']),
+    top_posts: JSON.stringify(topPosts),
+    ig_handle: client.ig_handle || '',
+    // AI insights
     ai_summary: narrative.summary || '',
     ai_ig_insight: narrative.ig_insight || '',
-    ai_tk_insight: narrative.tk_insight || '',
     ai_headline_win: narrative.headline_win || '',
     ai_watch_out: narrative.watch_out || '',
     narrative: narrative.summary || '',
-    // Store aggregated campaign metrics in the report
+    // Meta ad aggregates
     meta_spend: agg.total_spend,
     meta_impressions: agg.total_impressions,
     meta_reach: agg.total_reach,
@@ -141,6 +231,19 @@ export async function generateReport(ownerId, clientId, month, year) {
     meta_cpm: parseFloat(agg.avg_cpm.toFixed(4)),
     meta_conversions: agg.total_conversions,
     meta_roas: parseFloat(agg.avg_roas.toFixed(4)),
+    // Instagram organic aggregates
+    ig_followers: igAgg.ig_followers || null,
+    ig_new_followers: igAgg.ig_new_followers || null,
+    ig_reach: igAgg.ig_reach || null,
+    ig_views: igAgg.ig_views || null,
+    ig_profile_visits: igAgg.ig_profile_visits || null,
+    ig_website_taps: igAgg.ig_website_taps || null,
+    ig_likes: igMediaAgg.ig_likes || null,
+    ig_comments: igMediaAgg.ig_comments || null,
+    ig_shares: igMediaAgg.ig_shares || null,
+    ig_saves: igMediaAgg.ig_saves || null,
+    ig_posts: igMediaAgg.ig_posts || null,
+    ig_reels_published: igMediaAgg.ig_reels_published || null,
   };
 
   const { data: saved, error: saveErr } = await supabaseAdmin
@@ -154,6 +257,7 @@ export async function generateReport(ownerId, clientId, month, year) {
   return {
     report: saved,
     metrics_summary: agg,
+    ig_summary: igAgg,
     campaigns_count: campaigns ? campaigns.length : 0,
   };
 }

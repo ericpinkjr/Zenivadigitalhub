@@ -14,5 +14,6 @@ router.put('/:id', ctrl.update);
 router.delete('/:id', ctrl.remove);
 router.get('/:id/campaigns', ctrl.getCampaigns);
 router.get('/:id/campaign-metrics', ctrl.getCampaignMetrics);
+router.get('/:id/ig-metrics', ctrl.getIgMetrics);
 
 export default router;

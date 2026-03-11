@@ -4,7 +4,7 @@ import { ApiError } from '../utils/apiError.js';
 
 const META_API_BASE = 'https://graph.facebook.com/v19.0';
 
-async function metaFetch(endpoint, params = {}) {
+export async function metaFetch(endpoint, params = {}) {
   const url = new URL(`${META_API_BASE}${endpoint}`);
   url.searchParams.set('access_token', META_ACCESS_TOKEN);
   for (const [key, val] of Object.entries(params)) {
@@ -72,7 +72,7 @@ function extractRoas(actionValues, spend) {
 }
 
 // Run with concurrency limit
-async function asyncPool(limit, items, fn) {
+export async function asyncPool(limit, items, fn) {
   const results = [];
   const executing = new Set();
 

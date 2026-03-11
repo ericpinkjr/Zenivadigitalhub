@@ -18,7 +18,7 @@ export async function getAllReports(ownerId) {
     .from('reports')
     .select('*')
     .eq('owner_id', ownerId)
-    .order('created_at', { ascending: false });
+    .order('generated_at', { ascending: false });
 
   if (error) throw new ApiError(500, error.message);
   return data;
