@@ -51,8 +51,7 @@ export async function fetchIgAccountInsights(igUserId, since, until) {
   const sinceTs = Math.floor(new Date(since).getTime() / 1000);
   const untilTs = Math.floor(new Date(until).getTime() / 1000);
 
-  // Some metrics require metric_type=total_value, others use period=day
-  // Fetch them in two calls to avoid conflicts
+  // Fetch day-level metrics (reach, follower_count)
   const dayMetrics = await metaFetch(`/${igUserId}/insights`, {
     metric: 'reach,follower_count',
     period: 'day',
@@ -60,26 +59,33 @@ export async function fetchIgAccountInsights(igUserId, since, until) {
     until: String(untilTs),
   });
 
-  let totalMetrics = { data: [] };
+  // Fetch total_value metrics (views, profile_views, website_clicks)
+  // These return aggregated totals, not per-day breakdowns
+  let totals = { views: 0, profile_views: 0, website_clicks: 0 };
   try {
-    totalMetrics = await metaFetch(`/${igUserId}/insights`, {
+    const totalData = await metaFetch(`/${igUserId}/insights`, {
       metric: 'website_clicks,profile_views,views',
       metric_type: 'total_value',
       period: 'day',
       since: String(sinceTs),
       until: String(untilTs),
     });
+    for (const metric of (totalData.data || [])) {
+      // total_value metrics have a total_value field or values array
+      if (metric.total_value != null) {
+        totals[metric.name] = metric.total_value;
+      } else if (metric.values?.length) {
+        totals[metric.name] = metric.values.reduce((s, v) => s + (v.value || 0), 0);
+      }
+    }
+    console.log(`[IG] total_value metrics:`, JSON.stringify(totals));
   } catch (err) {
     console.warn(`[IG] total_value metrics failed:`, err.message);
   }
 
-  const data = { data: [...(dayMetrics.data || []), ...(totalMetrics.data || [])] };
-
-  // Transform from per-metric arrays to per-day objects
-  const metrics = data.data || [];
+  // Transform day metrics from per-metric arrays to per-day objects
   const dailyMap = {};
-
-  for (const metric of metrics) {
+  for (const metric of (dayMetrics.data || [])) {
     const metricName = metric.name;
     for (const val of (metric.values || [])) {
       const date = val.end_time.split('T')[0];
@@ -88,7 +94,7 @@ export async function fetchIgAccountInsights(igUserId, since, until) {
     }
   }
 
-  return Object.values(dailyMap);
+  return { daily: Object.values(dailyMap), totals };
 }
 
 /**
@@ -198,26 +204,28 @@ export async function syncClientInstagram(clientId) {
   // 3. Fetch profile
   const profile = await fetchIgProfile(igUserId);
 
-  // 4. Fetch account insights (last 30 days)
+  // 4. Fetch account insights (last 90 days for historical coverage)
   const now = new Date();
-  const thirtyDaysAgo = new Date(now);
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const since = thirtyDaysAgo.toISOString().split('T')[0];
+  const ninetyDaysAgo = new Date(now);
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+  const since = ninetyDaysAgo.toISOString().split('T')[0];
   const until = now.toISOString().split('T')[0];
 
-  const dailyInsights = await fetchIgAccountInsights(igUserId, since, until);
+  const { daily: dailyInsights, totals } = await fetchIgAccountInsights(igUserId, since, until);
+  const numDays = dailyInsights.length || 1;
 
   // 5. Upsert daily account metrics
+  // Spread total_value metrics evenly across days for storage
   let daysSynced = 0;
   for (const day of dailyInsights) {
     const row = {
       client_id: clientId,
       date: day.date,
       followers_count: day.follower_count || profile.followers_count || null,
-      impressions: day.views || 0,
+      impressions: Math.round((totals.views || 0) / numDays),
       reach: day.reach || 0,
-      profile_views: day.profile_views || 0,
-      website_clicks: day.website_clicks || 0,
+      profile_views: Math.round((totals.profile_views || 0) / numDays),
+      website_clicks: Math.round((totals.website_clicks || 0) / numDays),
       media_count: profile.media_count || null,
       synced_at: new Date().toISOString(),
     };

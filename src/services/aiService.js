@@ -15,18 +15,19 @@ function igErCalc(likes, comments, shares, saves, reach) {
   return ((parseNum(likes) + parseNum(comments) + parseNum(shares) + parseNum(saves)) / r) * 100;
 }
 
-// Industry benchmark defaults
+// Industry benchmarks for actively engaged pages (reach-based ER)
+// These reflect realistic averages for pages that post consistently
 const BENCHMARKS = {
-  "Fashion / Apparel": { ig_er: 1.5 },
-  "Beauty / Cosmetics": { ig_er: 1.8 },
-  "Food & Beverage": { ig_er: 2.0 },
-  "Fitness / Health": { ig_er: 2.2 },
-  "Real Estate": { ig_er: 1.0 },
-  "E-Commerce (General)": { ig_er: 1.2 },
-  "Faith / Ministry": { ig_er: 2.5 },
-  "Music / Entertainment": { ig_er: 2.0 },
-  "Tech / SaaS": { ig_er: 0.8 },
-  "Other": { ig_er: 1.5 },
+  "Fashion / Apparel": { ig_er: 4.0 },
+  "Beauty / Cosmetics": { ig_er: 4.5 },
+  "Food & Beverage": { ig_er: 5.5 },
+  "Fitness / Health": { ig_er: 5.0 },
+  "Real Estate": { ig_er: 3.5 },
+  "E-Commerce (General)": { ig_er: 3.8 },
+  "Faith / Ministry": { ig_er: 6.0 },
+  "Music / Entertainment": { ig_er: 5.0 },
+  "Tech / SaaS": { ig_er: 3.5 },
+  "Other": { ig_er: 4.0 },
 };
 
 export async function generateNarrative(clientName, cur, prev, industry) {
