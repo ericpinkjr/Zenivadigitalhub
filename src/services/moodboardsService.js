@@ -1,7 +1,9 @@
+import sharp from 'sharp';
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
 const BUCKET = 'mood-board-images';
+const HEIC_EXTS = ['heic', 'heif'];
 
 // ── Helpers ──
 
@@ -281,13 +283,24 @@ export async function toggleShotComplete(ownerId, shotId) {
 export async function uploadImage(ownerId, shotId, fileBuffer, fileName, fileSize) {
   const shot = await verifyShotOwner(ownerId, shotId);
 
-  const ext = fileName.split('.').pop() || 'jpg';
+  let ext = (fileName.split('.').pop() || 'jpg').toLowerCase();
+  let buffer = fileBuffer;
+  let contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+
+  // Convert HEIC/HEIF to JPEG (browsers can't display HEIC)
+  if (HEIC_EXTS.includes(ext)) {
+    buffer = await sharp(fileBuffer).jpeg({ quality: 90 }).toBuffer();
+    ext = 'jpg';
+    contentType = 'image/jpeg';
+    fileName = fileName.replace(/\.(heic|heif)$/i, '.jpg');
+  }
+
   const storagePath = `${shot.board_id}/${shotId}/${crypto.randomUUID()}.${ext}`;
 
   const { error: uploadErr } = await supabaseAdmin.storage
     .from(BUCKET)
-    .upload(storagePath, fileBuffer, {
-      contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+    .upload(storagePath, buffer, {
+      contentType,
       upsert: false,
     });
   if (uploadErr) throw new ApiError(500, `Upload failed: ${uploadErr.message}`);
