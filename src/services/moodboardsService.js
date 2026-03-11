@@ -1,9 +1,7 @@
-import sharp from 'sharp';
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
 const BUCKET = 'mood-board-images';
-const HEIC_EXTS = ['heic', 'heif'];
 
 // ── Helpers ──
 
@@ -287,13 +285,8 @@ export async function uploadImage(ownerId, shotId, fileBuffer, fileName, fileSiz
   let buffer = fileBuffer;
   let contentType = `image/${ext === 'jpg' ? 'jpeg' : ext}`;
 
-  // Convert HEIC/HEIF to JPEG (browsers can't display HEIC)
-  if (HEIC_EXTS.includes(ext)) {
-    buffer = await sharp(fileBuffer).jpeg({ quality: 90 }).toBuffer();
-    ext = 'jpg';
-    contentType = 'image/jpeg';
-    fileName = fileName.replace(/\.(heic|heif)$/i, '.jpg');
-  }
+  // HEIC/HEIF should already be converted to JPEG on the client side
+  // If somehow a HEIC still arrives, just store it as-is (won't preview in browser)
 
   const storagePath = `${shot.board_id}/${shotId}/${crypto.randomUUID()}.${ext}`;
 
