@@ -8,7 +8,20 @@ export async function getProfile(userId) {
     .eq('id', userId)
     .single();
 
-  if (error) throw new ApiError(404, 'Profile not found');
+  if (error) {
+    // Profile doesn't exist yet — auto-create one
+    const { data: user } = await supabaseAdmin.auth.admin.getUserById(userId);
+    const fullName = user?.user_metadata?.full_name || '';
+    const { data: newProfile, error: insertError } = await supabaseAdmin
+      .from('profiles')
+      .insert({ id: userId, full_name: fullName, role: 'admin' })
+      .select()
+      .single();
+
+    if (insertError) throw new ApiError(500, 'Failed to create profile: ' + insertError.message);
+    return newProfile;
+  }
+
   return data;
 }
 

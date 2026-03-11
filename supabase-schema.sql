@@ -8,7 +8,7 @@ create extension if not exists "uuid-ossp";
 
 -- ── Profiles (with roles) ──
 create table if not exists profiles (
-  id uuid references auth.users(id) primary key,
+  id uuid references auth.users(id) on delete cascade primary key,
   full_name text,
   role text default 'admin' check (role in ('admin', 'manager', 'copywriter')),
   created_at timestamptz default now()
@@ -36,7 +36,7 @@ create trigger on_auth_user_created
 -- ── Clients ──
 create table if not exists clients (
   id uuid default uuid_generate_v4() primary key,
-  owner_id uuid references auth.users(id) not null,
+  owner_id uuid references auth.users(id) on delete cascade not null,
   name text not null,
   location text,
   industry text,
@@ -99,7 +99,7 @@ create table if not exists ad_copy (
 create table if not exists reports (
   id uuid default uuid_generate_v4() primary key,
   client_id uuid references clients(id) on delete cascade not null,
-  owner_id uuid references auth.users(id) not null,
+  owner_id uuid references auth.users(id) on delete cascade not null,
   month text not null,
   year integer not null,
   narrative text,
