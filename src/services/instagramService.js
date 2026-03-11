@@ -52,7 +52,7 @@ export async function fetchIgAccountInsights(igUserId, since, until) {
   const untilTs = Math.floor(new Date(until).getTime() / 1000);
 
   const data = await metaFetch(`/${igUserId}/insights`, {
-    metric: 'impressions,reach,profile_views,website_clicks,follower_count',
+    metric: 'reach,follower_count,website_clicks,profile_views,views',
     period: 'day',
     since: String(sinceTs),
     until: String(untilTs),
@@ -124,25 +124,27 @@ export async function fetchIgMedia(igUserId, since) {
 export async function fetchIgMediaInsights(mediaId) {
   try {
     const data = await metaFetch(`/${mediaId}/insights`, {
-      metric: 'impressions,reach,saved,shares',
+      metric: 'reach,saved,shares',
     });
 
-    const result = {};
+    const result = { impressions: 0 };
     for (const metric of (data.data || [])) {
       result[metric.name] = metric.values?.[0]?.value || 0;
     }
+    // Use reach as a proxy for impressions since impressions was deprecated
+    result.impressions = result.reach || 0;
     return result;
   } catch (err) {
     // Some media types don't support all metrics (e.g., shares on non-Reels)
-    // Try without shares
     try {
       const data = await metaFetch(`/${mediaId}/insights`, {
-        metric: 'impressions,reach,saved',
+        metric: 'reach,saved',
       });
-      const result = { shares: 0 };
+      const result = { shares: 0, impressions: 0 };
       for (const metric of (data.data || [])) {
         result[metric.name] = metric.values?.[0]?.value || 0;
       }
+      result.impressions = result.reach || 0;
       return result;
     } catch {
       return { impressions: 0, reach: 0, saved: 0, shares: 0 };
@@ -195,7 +197,7 @@ export async function syncClientInstagram(clientId) {
       client_id: clientId,
       date: day.date,
       followers_count: day.follower_count || profile.followers_count || null,
-      impressions: day.impressions || 0,
+      impressions: day.views || 0,
       reach: day.reach || 0,
       profile_views: day.profile_views || 0,
       website_clicks: day.website_clicks || 0,
