@@ -51,12 +51,29 @@ export async function fetchIgAccountInsights(igUserId, since, until) {
   const sinceTs = Math.floor(new Date(since).getTime() / 1000);
   const untilTs = Math.floor(new Date(until).getTime() / 1000);
 
-  const data = await metaFetch(`/${igUserId}/insights`, {
-    metric: 'reach,follower_count,website_clicks,profile_views,views',
+  // Some metrics require metric_type=total_value, others use period=day
+  // Fetch them in two calls to avoid conflicts
+  const dayMetrics = await metaFetch(`/${igUserId}/insights`, {
+    metric: 'reach,follower_count',
     period: 'day',
     since: String(sinceTs),
     until: String(untilTs),
   });
+
+  let totalMetrics = { data: [] };
+  try {
+    totalMetrics = await metaFetch(`/${igUserId}/insights`, {
+      metric: 'website_clicks,profile_views,views',
+      metric_type: 'total_value',
+      period: 'day',
+      since: String(sinceTs),
+      until: String(untilTs),
+    });
+  } catch (err) {
+    console.warn(`[IG] total_value metrics failed:`, err.message);
+  }
+
+  const data = { data: [...(dayMetrics.data || []), ...(totalMetrics.data || [])] };
 
   // Transform from per-metric arrays to per-day objects
   const metrics = data.data || [];
