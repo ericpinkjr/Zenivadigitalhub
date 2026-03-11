@@ -21,7 +21,9 @@ export async function createApprovalToken(ownerId, { resourceType, resourceId, c
   if (clientErr) throw new ApiError(404, 'Client not found');
 
   // Verify the resource exists
-  const table = resourceType === 'copy' ? 'ad_copy' : 'reports';
+  const tableMap = { copy: 'ad_copy', report: 'reports', mood_board: 'mood_boards' };
+  const table = tableMap[resourceType];
+  if (!table) throw new ApiError(400, `Invalid resource type: ${resourceType}`);
   const { error: resErr } = await supabaseAdmin
     .from(table)
     .select('id')
@@ -68,20 +70,15 @@ export async function getApprovalByToken(token) {
 
   // Fetch the resource data
   let resource = null;
-  if (data.resource_type === 'copy') {
-    const { data: copy } = await supabaseAdmin
-      .from('ad_copy')
+  const resourceTableMap = { copy: 'ad_copy', report: 'reports', mood_board: 'mood_boards' };
+  const resourceTable = resourceTableMap[data.resource_type];
+  if (resourceTable) {
+    const { data: res } = await supabaseAdmin
+      .from(resourceTable)
       .select('*')
       .eq('id', data.resource_id)
       .single();
-    resource = copy;
-  } else if (data.resource_type === 'report') {
-    const { data: report } = await supabaseAdmin
-      .from('reports')
-      .select('*')
-      .eq('id', data.resource_id)
-      .single();
-    resource = report;
+    resource = res;
   }
 
   return { ...data, resource };

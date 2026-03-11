@@ -16,6 +16,7 @@ import proposalsRoutes from './proposals.js';
 import outboundRoutes from './outbound.js';
 import onboardingRoutes from './onboarding.js';
 import dashboardRoutes from './dashboard.js';
+import moodboardRoutes from './moodboards.js';
 
 const router = Router();
 
@@ -36,5 +37,6 @@ router.use('/proposals', proposalsRoutes);
 router.use('/outbound', outboundRoutes);
 router.use('/onboarding', onboardingRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/moodboards', moodboardRoutes);
 
 export default router;
