@@ -205,11 +205,11 @@ export async function syncClientInstagram(clientId) {
   // 3. Fetch profile
   const profile = await fetchIgProfile(igUserId);
 
-  // 4. Fetch account insights (last 90 days for historical coverage)
+  // 4. Fetch account insights (last 30 days — Meta API limit)
   const now = new Date();
-  const ninetyDaysAgo = new Date(now);
-  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
-  const since = ninetyDaysAgo.toISOString().split('T')[0];
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const since = thirtyDaysAgo.toISOString().split('T')[0];
   const until = now.toISOString().split('T')[0];
 
   const { daily: dailyInsights, totals } = await fetchIgAccountInsights(igUserId, since, until);
