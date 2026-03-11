@@ -16,7 +16,7 @@ export async function getReports(ownerId, clientId) {
 export async function getAllReports(ownerId) {
   const { data, error } = await supabaseAdmin
     .from('reports')
-    .select('id, client_id, month, year, published, created_at, ig_followers, ig_new_followers, ig_unfollows, ig_reach, ig_likes, ig_comments, ig_shares, ig_saves, tk_followers, tk_net_followers, tk_video_views, tk_likes, tk_comments, tk_shares')
+    .select('*')
     .eq('owner_id', ownerId)
     .order('created_at', { ascending: false });
 

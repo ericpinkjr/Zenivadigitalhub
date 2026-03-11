@@ -95,15 +95,70 @@ create table if not exists ad_copy (
   created_at timestamptz default now()
 );
 
--- ── Reports (new narrative-driven format) ──
+-- ── Reports ──
 create table if not exists reports (
   id uuid default uuid_generate_v4() primary key,
   client_id uuid references clients(id) on delete cascade not null,
   owner_id uuid references auth.users(id) on delete cascade not null,
   month text not null,
   year integer not null,
+  prepared_by text,
+  published boolean default false,
+  share_slug text,
+  platforms text,
+  top_posts text,
   narrative text,
   pdf_url text,
+  -- Instagram metrics
+  ig_handle text,
+  ig_screenshot_url text,
+  ig_followers bigint,
+  ig_new_followers bigint,
+  ig_unfollows bigint,
+  ig_reach bigint,
+  ig_views bigint,
+  ig_non_follower_reach_pct numeric(6,2),
+  ig_likes bigint,
+  ig_comments bigint,
+  ig_shares bigint,
+  ig_saves bigint,
+  ig_profile_visits bigint,
+  ig_website_taps bigint,
+  ig_call_taps bigint,
+  ig_direction_taps bigint,
+  ig_posts integer,
+  ig_reels_published integer,
+  ig_stories_published integer,
+  ig_posts_reach bigint,
+  ig_reels_reach bigint,
+  ig_stories_reach bigint,
+  -- TikTok metrics
+  tk_handle text,
+  tk_screenshot_url text,
+  tk_followers bigint,
+  tk_net_followers bigint,
+  tk_video_views bigint,
+  tk_total_viewers bigint,
+  tk_new_viewers bigint,
+  tk_likes bigint,
+  tk_comments bigint,
+  tk_shares bigint,
+  tk_saves bigint,
+  tk_for_you_pct numeric(6,2),
+  tk_search_pct numeric(6,2),
+  tk_profile_views bigint,
+  tk_videos integer,
+  -- Facebook & Google (stored as JSON)
+  fb_data text,
+  google_data text,
+  -- AI insights
+  ai_summary text,
+  ai_ig_insight text,
+  ai_tk_insight text,
+  ai_headline_win text,
+  ai_watch_out text,
+  -- Timestamps
+  created_at timestamptz default now(),
   generated_at timestamptz default now(),
   unique(client_id, month, year)
 );
