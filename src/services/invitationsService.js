@@ -118,18 +118,45 @@ export async function claimAccount(token, password, fullName) {
     .upsert({ id: user.id, full_name: fullName || '', role: invitation.role }, { onConflict: 'id' });
   if (profileErr) console.warn('Profile upsert:', profileErr.message);
 
-  // Add user to org
+  // Clean up any auto-created org from the DB trigger (e.g. "My Agency")
+  // The trigger may have fired when inviteUserByEmail created the auth.users row
+  const { data: existingMemberships } = await supabaseAdmin
+    .from('org_members')
+    .select('org_id')
+    .eq('user_id', user.id);
+
+  if (existingMemberships && existingMemberships.length > 0) {
+    for (const m of existingMemberships) {
+      if (m.org_id !== invitation.org_id) {
+        // Check if user owns this auto-created org (they're the only member)
+        const { data: orgMembers } = await supabaseAdmin
+          .from('org_members')
+          .select('user_id')
+          .eq('org_id', m.org_id);
+        if (orgMembers && orgMembers.length === 1 && orgMembers[0].user_id === user.id) {
+          // Delete the auto-created org and membership
+          await supabaseAdmin.from('org_members').delete().eq('org_id', m.org_id).eq('user_id', user.id);
+          await supabaseAdmin.from('organizations').delete().eq('id', m.org_id).eq('owner_id', user.id);
+        }
+      }
+    }
+    // Remove any existing membership in the target org (so we can re-insert with correct role)
+    await supabaseAdmin.from('org_members').delete().eq('org_id', invitation.org_id).eq('user_id', user.id);
+  }
+
+  // Add user to the correct org
   const { error: memberErr } = await supabaseAdmin
     .from('org_members')
-    .upsert({ org_id: invitation.org_id, user_id: user.id, role: invitation.role }, { onConflict: 'org_id,user_id' });
-  if (memberErr) console.warn('Org member upsert:', memberErr.message);
+    .insert({ org_id: invitation.org_id, user_id: user.id, role: invitation.role });
+  if (memberErr) throw new ApiError(400, 'Failed to join organization: ' + memberErr.message);
 
   // Add to team if specified
   if (invitation.team_id) {
+    await supabaseAdmin.from('team_members').delete().eq('team_id', invitation.team_id).eq('user_id', user.id);
     const { error: teamErr } = await supabaseAdmin
       .from('team_members')
-      .upsert({ team_id: invitation.team_id, user_id: user.id }, { onConflict: 'team_id,user_id' });
-    if (teamErr) console.warn('Team member upsert:', teamErr.message);
+      .insert({ team_id: invitation.team_id, user_id: user.id });
+    if (teamErr) throw new ApiError(400, 'Failed to join team: ' + teamErr.message);
   }
 
   // Mark invitation as accepted
