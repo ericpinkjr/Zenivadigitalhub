@@ -5,8 +5,9 @@ import * as ctrl from '../controllers/invitationsController.js';
 
 const router = Router();
 
-// Public route (no auth)
+// Public routes (no auth)
 router.get('/:token/info', ctrl.getInfo);
+router.post('/:token/claim', ctrl.claim);
 
 // Authenticated routes
 router.post('/', auth, orgAccess, requireRole('owner', 'lead'), ctrl.create);

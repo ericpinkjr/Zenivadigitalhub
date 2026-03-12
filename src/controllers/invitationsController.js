@@ -34,3 +34,11 @@ export async function accept(req, res, next) {
     res.json(data);
   } catch (e) { next(e); }
 }
+
+export async function claim(req, res, next) {
+  try {
+    const { password, full_name } = req.body;
+    const data = await invitationsService.claimAccount(req.params.token, password, full_name);
+    res.json(data);
+  } catch (e) { next(e); }
+}

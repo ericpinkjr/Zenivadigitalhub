@@ -88,6 +88,56 @@ export async function getInviteInfo(token) {
   };
 }
 
+export async function claimAccount(token, password, fullName) {
+  if (!password || password.length < 6) throw new ApiError(400, 'Password must be at least 6 characters');
+
+  const { data: invitation, error: findErr } = await supabaseAdmin
+    .from('invitations')
+    .select('*')
+    .eq('token', token)
+    .eq('status', 'pending')
+    .gt('expires_at', new Date().toISOString())
+    .single();
+
+  if (findErr || !invitation) throw new ApiError(404, 'Invitation not found or expired');
+
+  // Find the user created by inviteUserByEmail
+  const { data: { users }, error: listErr } = await supabaseAdmin.auth.admin.listUsers();
+  const user = users?.find(u => u.email === invitation.email);
+  if (!user) throw new ApiError(404, 'No account found for this invitation');
+
+  // Set password and confirm the user
+  const updates = { password, email_confirm: true };
+  if (fullName) updates.user_metadata = { full_name: fullName };
+  const { error: updateErr } = await supabaseAdmin.auth.admin.updateUserById(user.id, updates);
+  if (updateErr) throw new ApiError(400, updateErr.message);
+
+  // Create/update profile
+  const { error: profileErr } = await supabaseAdmin
+    .from('profiles')
+    .upsert({ id: user.id, full_name: fullName || '', role: invitation.role }, { onConflict: 'id' });
+  if (profileErr) console.warn('Profile upsert:', profileErr.message);
+
+  // Add user to org
+  const { error: memberErr } = await supabaseAdmin
+    .from('org_members')
+    .upsert({ org_id: invitation.org_id, user_id: user.id, role: invitation.role }, { onConflict: 'org_id,user_id' });
+  if (memberErr) console.warn('Org member upsert:', memberErr.message);
+
+  // Add to team if specified
+  if (invitation.team_id) {
+    const { error: teamErr } = await supabaseAdmin
+      .from('team_members')
+      .upsert({ team_id: invitation.team_id, user_id: user.id }, { onConflict: 'team_id,user_id' });
+    if (teamErr) console.warn('Team member upsert:', teamErr.message);
+  }
+
+  // Mark invitation as accepted
+  await supabaseAdmin.from('invitations').update({ status: 'accepted' }).eq('id', invitation.id);
+
+  return { success: true, email: invitation.email };
+}
+
 export async function acceptInvitation(token, userId) {
   const { data: invitation, error: findErr } = await supabaseAdmin
     .from('invitations')
