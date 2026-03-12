@@ -51,7 +51,7 @@ export async function listMembers(orgId) {
     const userIds = members.map(m => m.user_id);
     const { data: profiles } = await supabaseAdmin
       .from('profiles')
-      .select('id, full_name, role')
+      .select('id, full_name, role, title, avatar_url')
       .in('id', userIds);
 
     const profileMap = {};

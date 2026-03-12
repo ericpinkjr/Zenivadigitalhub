@@ -13,3 +13,17 @@ export async function updateProfile(req, res, next) {
     res.json(data);
   } catch (e) { next(e); }
 }
+
+export async function uploadAvatar(req, res, next) {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded' });
+    }
+    const data = await profilesService.uploadAvatar(
+      req.user.id,
+      req.file.buffer,
+      req.file.mimetype
+    );
+    res.json(data);
+  } catch (e) { next(e); }
+}

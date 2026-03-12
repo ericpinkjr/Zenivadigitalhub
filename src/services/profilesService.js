@@ -26,9 +26,46 @@ export async function getProfile(userId) {
 }
 
 export async function updateProfile(userId, updates) {
+  // Whitelist allowed fields
+  const patch = {};
+  if (updates.full_name !== undefined) patch.full_name = updates.full_name;
+  if (updates.title !== undefined) patch.title = updates.title;
+  if (updates.avatar_url !== undefined) patch.avatar_url = updates.avatar_url;
+
   const { data, error } = await supabaseAdmin
     .from('profiles')
-    .update(updates)
+    .update(patch)
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error) throw new ApiError(400, error.message);
+  return data;
+}
+
+export async function uploadAvatar(userId, fileBuffer, mimeType) {
+  const ext = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const filePath = `${userId}/avatar.${ext}`;
+
+  // Upload (upsert) to avatars bucket
+  const { error: uploadErr } = await supabaseAdmin.storage
+    .from('avatars')
+    .upload(filePath, fileBuffer, {
+      contentType: mimeType,
+      upsert: true,
+    });
+
+  if (uploadErr) throw new ApiError(400, 'Upload failed: ' + uploadErr.message);
+
+  // Get the public URL
+  const { data: { publicUrl } } = supabaseAdmin.storage
+    .from('avatars')
+    .getPublicUrl(filePath);
+
+  // Save to profile
+  const { data, error } = await supabaseAdmin
+    .from('profiles')
+    .update({ avatar_url: publicUrl })
     .eq('id', userId)
     .select()
     .single();
