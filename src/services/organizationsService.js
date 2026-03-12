@@ -38,14 +38,32 @@ export async function updateOrganization(orgId, userId, updates) {
 }
 
 export async function listMembers(orgId) {
-  const { data, error } = await supabaseAdmin
+  const { data: members, error } = await supabaseAdmin
     .from('org_members')
-    .select('*, profiles(full_name, role)')
+    .select('*')
     .eq('org_id', orgId)
     .order('joined_at', { ascending: true });
 
   if (error) throw new ApiError(500, error.message);
-  return data;
+
+  // Fetch profiles for each member
+  if (members && members.length > 0) {
+    const userIds = members.map(m => m.user_id);
+    const { data: profiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name, role')
+      .in('id', userIds);
+
+    const profileMap = {};
+    (profiles || []).forEach(p => { profileMap[p.id] = p; });
+
+    return members.map(m => ({
+      ...m,
+      profile: profileMap[m.user_id] || null,
+    }));
+  }
+
+  return members;
 }
 
 export async function changeMemberRole(orgId, userId, targetUserId, newRole) {

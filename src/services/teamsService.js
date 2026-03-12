@@ -2,14 +2,37 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
 export async function listTeams(orgId) {
-  const { data, error } = await supabaseAdmin
+  const { data: teams, error } = await supabaseAdmin
     .from('teams')
-    .select('*, team_members(id, user_id, role, profiles:user_id(full_name))')
+    .select('*, team_members(id, user_id, role)')
     .eq('org_id', orgId)
     .order('created_at', { ascending: true });
 
   if (error) throw new ApiError(500, error.message);
-  return data;
+
+  // Collect all user IDs from team members and fetch profiles
+  const allUserIds = new Set();
+  (teams || []).forEach(t => {
+    (t.team_members || []).forEach(m => allUserIds.add(m.user_id));
+  });
+
+  if (allUserIds.size > 0) {
+    const { data: profiles } = await supabaseAdmin
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', [...allUserIds]);
+
+    const profileMap = {};
+    (profiles || []).forEach(p => { profileMap[p.id] = p; });
+
+    teams.forEach(t => {
+      (t.team_members || []).forEach(m => {
+        m.profile = profileMap[m.user_id] || null;
+      });
+    });
+  }
+
+  return teams;
 }
 
 export async function createTeam(orgId, { name, description }) {
