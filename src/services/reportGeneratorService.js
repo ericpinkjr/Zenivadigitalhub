@@ -9,13 +9,13 @@ const MONTHS = ['January','February','March','April','May','June','July','August
  * and ig_account_metrics/ig_media_metrics from Supabase, aggregating them,
  * sending to Claude for a narrative, and saving the report.
  */
-export async function generateReport(ownerId, clientId, month, year) {
+export async function generateReport(orgId, clientId, month, year) {
   // 1. Get client
   const { data: client, error: clientErr } = await supabaseAdmin
     .from('clients')
     .select('*')
     .eq('id', clientId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (clientErr || !client) throw new ApiError(404, 'Client not found');
@@ -208,7 +208,7 @@ export async function generateReport(ownerId, clientId, month, year) {
   // 13. Save report
   const reportPayload = {
     client_id: clientId,
-    owner_id: ownerId,
+    org_id: orgId,
     month,
     year: parseInt(year),
     published: false,

@@ -17,6 +17,9 @@ import outboundRoutes from './outbound.js';
 import onboardingRoutes from './onboarding.js';
 import dashboardRoutes from './dashboard.js';
 import moodboardRoutes from './moodboards.js';
+import organizationRoutes from './organizations.js';
+import invitationRoutes from './invitations.js';
+import teamRoutes from './teams.js';
 
 const router = Router();
 
@@ -38,5 +41,8 @@ router.use('/outbound', outboundRoutes);
 router.use('/onboarding', onboardingRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/moodboards', moodboardRoutes);
+router.use('/organizations', organizationRoutes);
+router.use('/invitations', invitationRoutes);
+router.use('/teams', teamRoutes);
 
 export default router;

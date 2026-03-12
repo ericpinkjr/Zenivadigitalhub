@@ -3,7 +3,7 @@ import { exportReportPdf } from '../services/pdfService.js';
 export async function exportPdf(req, res, next) {
   try {
     const { reportId } = req.params;
-    const result = await exportReportPdf(req.user.id, reportId);
+    const result = await exportReportPdf(req.org.id, reportId);
 
     if (result.pdfUrl) {
       // PDF was uploaded to storage — return the URL

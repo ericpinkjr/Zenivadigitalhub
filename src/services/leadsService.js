@@ -1,11 +1,11 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
-export async function getLeads(ownerId, { status, source, industry, assignedTo } = {}) {
+export async function getLeads(orgId, { status, source, industry, assignedTo } = {}) {
   let query = supabaseAdmin
     .from('leads')
     .select('*')
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .eq('is_deleted', false)
     .order('updated_at', { ascending: false });
 
@@ -19,12 +19,12 @@ export async function getLeads(ownerId, { status, source, industry, assignedTo }
   return data;
 }
 
-export async function getLead(ownerId, leadId) {
+export async function getLead(orgId, leadId) {
   const { data: lead, error } = await supabaseAdmin
     .from('leads')
     .select('*')
     .eq('id', leadId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (error || !lead) throw new ApiError(404, 'Lead not found');
@@ -34,7 +34,7 @@ export async function getLead(ownerId, leadId) {
     .from('interactions')
     .select('*')
     .eq('lead_id', leadId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .order('created_at', { ascending: false });
 
   // Fetch proposals
@@ -42,15 +42,15 @@ export async function getLead(ownerId, leadId) {
     .from('proposals')
     .select('*')
     .eq('lead_id', leadId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .order('created_at', { ascending: false });
 
   return { ...lead, interactions: interactions || [], proposals: proposals || [] };
 }
 
-export async function createLead(ownerId, data) {
+export async function createLead(orgId, data) {
   const row = {
-    owner_id: ownerId,
+    org_id: orgId,
     business_name: data.business_name,
     contact_name: data.contact_name || null,
     contact_email: data.contact_email || null,
@@ -74,12 +74,12 @@ export async function createLead(ownerId, data) {
   return lead;
 }
 
-export async function updateLead(ownerId, leadId, updates) {
+export async function updateLead(orgId, leadId, updates) {
   const { error: findErr } = await supabaseAdmin
     .from('leads')
     .select('id')
     .eq('id', leadId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (findErr) throw new ApiError(404, 'Lead not found');
@@ -105,12 +105,12 @@ export async function updateLead(ownerId, leadId, updates) {
   return data;
 }
 
-export async function deleteLead(ownerId, leadId) {
+export async function deleteLead(orgId, leadId) {
   const { error: findErr } = await supabaseAdmin
     .from('leads')
     .select('id')
     .eq('id', leadId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (findErr) throw new ApiError(404, 'Lead not found');
@@ -130,12 +130,12 @@ export async function deleteLead(ownerId, leadId) {
  * Creates the client, sets converted_client_id on the lead,
  * and creates an onboarding checklist.
  */
-export async function convertLeadToClient(ownerId, leadId) {
+export async function convertLeadToClient(orgId, leadId) {
   const { data: lead, error: leadErr } = await supabaseAdmin
     .from('leads')
     .select('*')
     .eq('id', leadId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (leadErr || !lead) throw new ApiError(404, 'Lead not found');
@@ -148,7 +148,7 @@ export async function convertLeadToClient(ownerId, leadId) {
   const { data: client, error: clientErr } = await supabaseAdmin
     .from('clients')
     .insert({
-      owner_id: ownerId,
+      org_id: orgId,
       name: lead.business_name,
       industry: lead.industry || null,
       location: lead.location || null,

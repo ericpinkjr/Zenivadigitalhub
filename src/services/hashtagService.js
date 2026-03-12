@@ -98,13 +98,13 @@ export async function parseAndStoreHashtags(clientId) {
 /**
  * Get hashtag performance data for a client.
  */
-export async function getHashtags(ownerId, clientId, { sortBy = 'avg_engagement_rate', order = 'desc', limit = 100 } = {}) {
+export async function getHashtags(orgId, clientId, { sortBy = 'avg_engagement_rate', order = 'desc', limit = 100 } = {}) {
   // Verify ownership
   const { error: clientErr } = await supabaseAdmin
     .from('clients')
     .select('id')
     .eq('id', clientId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (clientErr) throw new ApiError(404, 'Client not found');

@@ -152,13 +152,13 @@ function escapeHtml(str) {
   return (str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-export async function exportMoodBoardPdf(ownerId, boardId) {
+export async function exportMoodBoardPdf(orgId, boardId) {
   // Verify ownership
   const { data: board, error: boardErr } = await supabaseAdmin
     .from('mood_boards')
     .select('*, clients(name, brand_color)')
     .eq('id', boardId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
   if (boardErr || !board) throw new ApiError(404, 'Board not found');
 

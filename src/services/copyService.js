@@ -90,13 +90,13 @@ Return ONLY valid JSON array (no markdown):
  * Generate copy variants for a client using their creative brief.
  * Supports multiple copy types: meta_ad, ig_caption, tiktok_caption, email_campaign.
  */
-export async function generateCopy(ownerId, clientId, { campaignId, campaignGoal, currentOffer, tone, copyType = 'meta_ad' } = {}) {
+export async function generateCopy(orgId, clientId, { campaignId, campaignGoal, currentOffer, tone, copyType = 'meta_ad' } = {}) {
   // 1. Get client brief
   const { data: client, error: clientErr } = await supabaseAdmin
     .from('clients')
     .select('*')
     .eq('id', clientId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (clientErr || !client) throw new ApiError(404, 'Client not found');
@@ -157,13 +157,13 @@ export async function generateCopy(ownerId, clientId, { campaignId, campaignGoal
 /**
  * List all ad copy for a client, optionally filtered by status or campaign.
  */
-export async function listCopy(ownerId, clientId, { status, campaignId, copyType } = {}) {
+export async function listCopy(orgId, clientId, { status, campaignId, copyType } = {}) {
   // Verify ownership
   const { error: clientErr } = await supabaseAdmin
     .from('clients')
     .select('id')
     .eq('id', clientId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (clientErr) throw new ApiError(404, 'Client not found');
@@ -186,7 +186,7 @@ export async function listCopy(ownerId, clientId, { status, campaignId, copyType
 /**
  * Update a single ad copy variant (edit text or change status).
  */
-export async function updateCopy(ownerId, copyId, updates) {
+export async function updateCopy(orgId, copyId, updates) {
   // Get the copy to verify ownership chain
   const { data: copy, error: copyErr } = await supabaseAdmin
     .from('ad_copy')
@@ -201,7 +201,7 @@ export async function updateCopy(ownerId, copyId, updates) {
     .from('clients')
     .select('id')
     .eq('id', copy.client_id)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (clientErr) throw new ApiError(403, 'Not authorized');
@@ -225,7 +225,7 @@ export async function updateCopy(ownerId, copyId, updates) {
 /**
  * Duplicate a copy variant as a new draft.
  */
-export async function duplicateCopy(ownerId, copyId) {
+export async function duplicateCopy(orgId, copyId) {
   const { data: original, error: origErr } = await supabaseAdmin
     .from('ad_copy')
     .select('*')
@@ -239,7 +239,7 @@ export async function duplicateCopy(ownerId, copyId) {
     .from('clients')
     .select('id')
     .eq('id', original.client_id)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (clientErr) throw new ApiError(403, 'Not authorized');
@@ -267,7 +267,7 @@ export async function duplicateCopy(ownerId, copyId) {
 /**
  * Delete a copy variant.
  */
-export async function deleteCopy(ownerId, copyId) {
+export async function deleteCopy(orgId, copyId) {
   const { data: copy, error: copyErr } = await supabaseAdmin
     .from('ad_copy')
     .select('client_id')
@@ -280,7 +280,7 @@ export async function deleteCopy(ownerId, copyId) {
     .from('clients')
     .select('id')
     .eq('id', copy.client_id)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (clientErr) throw new ApiError(403, 'Not authorized');

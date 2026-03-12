@@ -12,13 +12,13 @@ const CHECKLIST_STEPS = [
   'onboarding_complete',
 ];
 
-export async function getChecklist(ownerId, clientId) {
+export async function getChecklist(orgId, clientId) {
   // Verify ownership
   const { error: clientErr } = await supabaseAdmin
     .from('clients')
     .select('id')
     .eq('id', clientId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (clientErr) throw new ApiError(404, 'Client not found');
@@ -33,13 +33,13 @@ export async function getChecklist(ownerId, clientId) {
   return data;
 }
 
-export async function updateChecklist(ownerId, clientId, updates) {
+export async function updateChecklist(orgId, clientId, updates) {
   // Verify ownership
   const { error: clientErr } = await supabaseAdmin
     .from('clients')
     .select('id')
     .eq('id', clientId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (clientErr) throw new ApiError(404, 'Client not found');
@@ -82,12 +82,12 @@ export async function updateChecklist(ownerId, clientId, updates) {
   return data;
 }
 
-export async function getOnboardingOverview(ownerId) {
+export async function getOnboardingOverview(orgId) {
   // Get all clients owned by user that have onboarding checklists
   const { data: clients, error: clientErr } = await supabaseAdmin
     .from('clients')
     .select('id, name, industry, brand_color')
-    .eq('owner_id', ownerId);
+    .eq('org_id', orgId);
 
   if (clientErr) throw new ApiError(500, clientErr.message);
   if (!clients || clients.length === 0) return [];

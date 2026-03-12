@@ -5,11 +5,11 @@ import { ApiError } from '../utils/apiError.js';
 
 const claude = ANTHROPIC_API_KEY ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) : null;
 
-export async function getTargets(ownerId, { month, status } = {}) {
+export async function getTargets(orgId, { month, status } = {}) {
   let query = supabaseAdmin
     .from('outbound_targets')
     .select('*')
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .order('created_at', { ascending: false });
 
   if (month) query = query.eq('month_targeted', month);
@@ -20,9 +20,9 @@ export async function getTargets(ownerId, { month, status } = {}) {
   return data;
 }
 
-export async function createTarget(ownerId, data) {
+export async function createTarget(orgId, data) {
   const row = {
-    owner_id: ownerId,
+    org_id: orgId,
     business_name: data.business_name,
     contact_name: data.contact_name || null,
     contact_email: data.contact_email || null,
@@ -44,12 +44,12 @@ export async function createTarget(ownerId, data) {
   return target;
 }
 
-export async function updateTarget(ownerId, targetId, updates) {
+export async function updateTarget(orgId, targetId, updates) {
   const { error: findErr } = await supabaseAdmin
     .from('outbound_targets')
     .select('id')
     .eq('id', targetId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (findErr) throw new ApiError(404, 'Target not found');
@@ -73,12 +73,12 @@ export async function updateTarget(ownerId, targetId, updates) {
   return data;
 }
 
-export async function convertTargetToLead(ownerId, targetId) {
+export async function convertTargetToLead(orgId, targetId) {
   const { data: target, error: targetErr } = await supabaseAdmin
     .from('outbound_targets')
     .select('*')
     .eq('id', targetId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (targetErr || !target) throw new ApiError(404, 'Target not found');
@@ -87,7 +87,7 @@ export async function convertTargetToLead(ownerId, targetId) {
   const { data: lead, error: leadErr } = await supabaseAdmin
     .from('leads')
     .insert({
-      owner_id: ownerId,
+      org_id: orgId,
       business_name: target.business_name,
       contact_name: target.contact_name,
       contact_email: target.contact_email,
@@ -111,14 +111,14 @@ export async function convertTargetToLead(ownerId, targetId) {
   return lead;
 }
 
-export async function draftOutreach(ownerId, targetId) {
+export async function draftOutreach(orgId, targetId) {
   if (!claude) throw new ApiError(500, 'Anthropic API key not configured');
 
   const { data: target, error } = await supabaseAdmin
     .from('outbound_targets')
     .select('*')
     .eq('id', targetId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (error || !target) throw new ApiError(404, 'Target not found');

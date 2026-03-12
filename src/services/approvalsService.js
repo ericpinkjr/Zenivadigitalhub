@@ -6,7 +6,7 @@ import { ApiError } from '../utils/apiError.js';
  * Create an approval token for a copy variant or report.
  * Token expires after the specified number of days (default 7).
  */
-export async function createApprovalToken(ownerId, { resourceType, resourceId, clientId, expiresInDays = 7 }) {
+export async function createApprovalToken(orgId, { resourceType, resourceId, clientId, expiresInDays = 7 }) {
   if (!resourceType || !resourceId || !clientId) {
     throw new ApiError(400, 'resourceType, resourceId, and clientId are required');
   }
@@ -16,7 +16,7 @@ export async function createApprovalToken(ownerId, { resourceType, resourceId, c
     .from('clients')
     .select('id')
     .eq('id', clientId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
   if (clientErr) throw new ApiError(404, 'Client not found');
 
@@ -38,7 +38,7 @@ export async function createApprovalToken(ownerId, { resourceType, resourceId, c
   const { data, error } = await supabaseAdmin
     .from('approval_tokens')
     .insert({
-      owner_id: ownerId,
+      org_id: orgId,
       token,
       resource_type: resourceType,
       resource_id: resourceId,
@@ -130,11 +130,11 @@ export async function respondToApproval(token, { status, comment }) {
 /**
  * List all approval tokens for the authenticated user.
  */
-export async function listApprovals(ownerId, { clientId, status } = {}) {
+export async function listApprovals(orgId, { clientId, status } = {}) {
   let query = supabaseAdmin
     .from('approval_tokens')
     .select('*, clients(name, brand_color)')
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .order('created_at', { ascending: false });
 
   if (clientId) query = query.eq('client_id', clientId);

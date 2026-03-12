@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
-export async function getDashboardSummary(ownerId) {
+export async function getDashboardSummary(orgId) {
   const today = new Date().toISOString().split('T')[0];
   const currentMonth = today.substring(0, 7); // "2026-03"
 
@@ -9,7 +9,7 @@ export async function getDashboardSummary(ownerId) {
   const clientsResult = await supabaseAdmin
     .from('clients')
     .select('id', { count: 'exact' })
-    .eq('owner_id', ownerId);
+    .eq('org_id', orgId);
 
   const clientIds = (clientsResult.data || []).map(c => c.id);
 
@@ -26,14 +26,14 @@ export async function getDashboardSummary(ownerId) {
     supabaseAdmin
       .from('leads')
       .select('status')
-      .eq('owner_id', ownerId)
+      .eq('org_id', orgId)
       .eq('is_deleted', false),
 
     // Follow-ups due today or earlier
     supabaseAdmin
       .from('interactions')
       .select('id', { count: 'exact', head: true })
-      .eq('owner_id', ownerId)
+      .eq('org_id', orgId)
       .eq('follow_up_required', true)
       .lte('follow_up_date', today),
 
@@ -50,21 +50,21 @@ export async function getDashboardSummary(ownerId) {
     supabaseAdmin
       .from('proposals')
       .select('monthly_value')
-      .eq('owner_id', ownerId)
+      .eq('org_id', orgId)
       .eq('status', 'accepted'),
 
     // Outbound targets this month
     supabaseAdmin
       .from('outbound_targets')
       .select('status')
-      .eq('owner_id', ownerId)
+      .eq('org_id', orgId)
       .eq('month_targeted', currentMonth),
 
     // Reports generated this month
     supabaseAdmin
       .from('reports')
       .select('id', { count: 'exact', head: true })
-      .eq('owner_id', ownerId)
+      .eq('org_id', orgId)
       .gte('created_at', `${currentMonth}-01`),
   ]);
 

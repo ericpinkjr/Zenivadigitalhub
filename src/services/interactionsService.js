@@ -1,9 +1,9 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
-export async function logInteraction(ownerId, data) {
+export async function logInteraction(orgId, data) {
   const row = {
-    owner_id: ownerId,
+    org_id: orgId,
     lead_id: data.lead_id || null,
     client_id: data.client_id || null,
     type: data.type,
@@ -35,17 +35,17 @@ export async function logInteraction(ownerId, data) {
         updated_at: new Date().toISOString(),
       })
       .eq('id', row.lead_id)
-      .eq('owner_id', ownerId);
+      .eq('org_id', orgId);
   }
 
   return interaction;
 }
 
-export async function getInteractions(ownerId, { leadId, clientId } = {}) {
+export async function getInteractions(orgId, { leadId, clientId } = {}) {
   let query = supabaseAdmin
     .from('interactions')
     .select('*')
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .order('created_at', { ascending: false });
 
   if (leadId) query = query.eq('lead_id', leadId);
@@ -56,13 +56,13 @@ export async function getInteractions(ownerId, { leadId, clientId } = {}) {
   return data;
 }
 
-export async function getFollowUps(ownerId) {
+export async function getFollowUps(orgId) {
   const today = new Date().toISOString().split('T')[0];
 
   const { data, error } = await supabaseAdmin
     .from('interactions')
     .select('*, leads(business_name, status)')
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .eq('follow_up_required', true)
     .lte('follow_up_date', today)
     .order('follow_up_date', { ascending: true });

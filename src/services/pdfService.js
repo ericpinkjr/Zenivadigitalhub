@@ -164,13 +164,13 @@ function buildReportHtml(report, client) {
 </html>`;
 }
 
-export async function exportReportPdf(ownerId, reportId) {
+export async function exportReportPdf(orgId, reportId) {
   // 1. Get report
   const { data: report, error: reportErr } = await supabaseAdmin
     .from('reports')
     .select('*')
     .eq('id', reportId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (reportErr || !report) throw new ApiError(404, 'Report not found');

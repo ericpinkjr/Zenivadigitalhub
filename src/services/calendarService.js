@@ -9,14 +9,14 @@ const claude = ANTHROPIC_API_KEY ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) 
  * Get AI-powered campaign suggestions for the next 30-60 days,
  * tailored to each client's industry and location.
  */
-export async function getCampaignSuggestions(ownerId) {
+export async function getCampaignSuggestions(orgId) {
   if (!claude) throw new ApiError(500, 'Anthropic API key not configured');
 
   // Get all clients for this user
   const { data: clients, error } = await supabaseAdmin
     .from('clients')
     .select('id, name, industry, location, target_audience')
-    .eq('owner_id', ownerId);
+    .eq('org_id', orgId);
 
   if (error) throw new ApiError(500, error.message);
   if (!clients || clients.length === 0) return [];

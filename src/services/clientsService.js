@@ -1,21 +1,21 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
-export async function listClients(ownerId) {
+export async function listClients(orgId) {
   const { data, error } = await supabaseAdmin
     .from('clients')
     .select('*')
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .order('created_at', { ascending: true });
 
   if (error) throw new ApiError(500, error.message);
   return data;
 }
 
-export async function createClient(ownerId, clientData) {
+export async function createClient(orgId, clientData) {
   const { data, error } = await supabaseAdmin
     .from('clients')
-    .insert({ ...clientData, owner_id: ownerId })
+    .insert({ ...clientData, org_id: orgId })
     .select()
     .single();
 
@@ -23,24 +23,24 @@ export async function createClient(ownerId, clientData) {
   return data;
 }
 
-export async function getClientById(ownerId, clientId) {
+export async function getClientById(orgId, clientId) {
   const { data, error } = await supabaseAdmin
     .from('clients')
     .select('*')
     .eq('id', clientId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (error) throw new ApiError(404, 'Client not found');
   return data;
 }
 
-export async function updateClient(ownerId, clientId, updates) {
+export async function updateClient(orgId, clientId, updates) {
   const { data, error } = await supabaseAdmin
     .from('clients')
     .update(updates)
     .eq('id', clientId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .select()
     .single();
 
@@ -48,20 +48,20 @@ export async function updateClient(ownerId, clientId, updates) {
   return data;
 }
 
-export async function deleteClient(ownerId, clientId) {
+export async function deleteClient(orgId, clientId) {
   const { error } = await supabaseAdmin
     .from('clients')
     .delete()
     .eq('id', clientId)
-    .eq('owner_id', ownerId);
+    .eq('org_id', orgId);
 
   if (error) throw new ApiError(400, error.message);
   return { success: true };
 }
 
-export async function getClientCampaigns(ownerId, clientId) {
+export async function getClientCampaigns(orgId, clientId) {
   // Verify ownership first
-  await getClientById(ownerId, clientId);
+  await getClientById(orgId, clientId);
 
   const { data, error } = await supabaseAdmin
     .from('campaigns')
@@ -73,9 +73,9 @@ export async function getClientCampaigns(ownerId, clientId) {
   return data;
 }
 
-export async function getClientCampaignMetrics(ownerId, clientId, { startDate, endDate } = {}) {
+export async function getClientCampaignMetrics(orgId, clientId, { startDate, endDate } = {}) {
   // Verify ownership first
-  await getClientById(ownerId, clientId);
+  await getClientById(orgId, clientId);
 
   // Get all campaign IDs for this client
   const { data: campaigns, error: campError } = await supabaseAdmin
@@ -103,8 +103,8 @@ export async function getClientCampaignMetrics(ownerId, clientId, { startDate, e
   return data;
 }
 
-export async function getClientIgMetrics(ownerId, clientId, { startDate, endDate } = {}) {
-  await getClientById(ownerId, clientId);
+export async function getClientIgMetrics(orgId, clientId, { startDate, endDate } = {}) {
+  await getClientById(orgId, clientId);
 
   let accountQuery = supabaseAdmin
     .from('ig_account_metrics')

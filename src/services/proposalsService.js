@@ -1,19 +1,19 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
-export async function createProposal(ownerId, data) {
+export async function createProposal(orgId, data) {
   // Verify lead ownership
   const { error: leadErr } = await supabaseAdmin
     .from('leads')
     .select('id')
     .eq('id', data.lead_id)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (leadErr) throw new ApiError(404, 'Lead not found');
 
   const row = {
-    owner_id: ownerId,
+    org_id: orgId,
     lead_id: data.lead_id,
     service_type: data.service_type || null,
     monthly_value: data.monthly_value || null,
@@ -34,17 +34,17 @@ export async function createProposal(ownerId, data) {
     .from('leads')
     .update({ status: 'proposal-sent', updated_at: new Date().toISOString() })
     .eq('id', data.lead_id)
-    .eq('owner_id', ownerId);
+    .eq('org_id', orgId);
 
   return proposal;
 }
 
-export async function updateProposal(ownerId, proposalId, updates) {
+export async function updateProposal(orgId, proposalId, updates) {
   const { data: proposal, error: findErr } = await supabaseAdmin
     .from('proposals')
     .select('*')
     .eq('id', proposalId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
 
   if (findErr || !proposal) throw new ApiError(404, 'Proposal not found');
@@ -73,11 +73,11 @@ export async function updateProposal(ownerId, proposalId, updates) {
   return data;
 }
 
-export async function getProposals(ownerId, { leadId, status } = {}) {
+export async function getProposals(orgId, { leadId, status } = {}) {
   let query = supabaseAdmin
     .from('proposals')
     .select('*, leads(business_name)')
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .order('created_at', { ascending: false });
 
   if (leadId) query = query.eq('lead_id', leadId);

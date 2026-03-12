@@ -1,33 +1,33 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
-export async function getReports(ownerId, clientId) {
+export async function getReports(orgId, clientId) {
   const { data, error } = await supabaseAdmin
     .from('reports')
     .select('*')
     .eq('client_id', clientId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .order('year', { ascending: true });
 
   if (error) throw new ApiError(500, error.message);
   return data;
 }
 
-export async function getAllReports(ownerId) {
+export async function getAllReports(orgId) {
   const { data, error } = await supabaseAdmin
     .from('reports')
     .select('*')
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .order('generated_at', { ascending: false });
 
   if (error) throw new ApiError(500, error.message);
   return data;
 }
 
-export async function saveReport(ownerId, reportData) {
+export async function saveReport(orgId, reportData) {
   const { data, error } = await supabaseAdmin
     .from('reports')
-    .insert({ ...reportData, owner_id: ownerId })
+    .insert({ ...reportData, org_id: orgId })
     .select()
     .single();
 
@@ -35,12 +35,12 @@ export async function saveReport(ownerId, reportData) {
   return data;
 }
 
-export async function patchReport(ownerId, reportId, updates) {
+export async function patchReport(orgId, reportId, updates) {
   const { data, error } = await supabaseAdmin
     .from('reports')
     .update(updates)
     .eq('id', reportId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .select()
     .single();
 

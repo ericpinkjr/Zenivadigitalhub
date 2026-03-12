@@ -6,7 +6,7 @@ import { exportMoodBoardPdf } from '../services/moodboardPdfService.js';
 
 export async function createBoard(req, res, next) {
   try {
-    const data = await svc.createBoard(req.user.id, req.body);
+    const data = await svc.createBoard(req.org.id, req.body);
     res.status(201).json(data);
   } catch (e) { next(e); }
 }
@@ -14,35 +14,35 @@ export async function createBoard(req, res, next) {
 export async function listBoards(req, res, next) {
   try {
     const { client_id } = req.query;
-    const data = await svc.listBoards(req.user.id, { clientId: client_id });
+    const data = await svc.listBoards(req.org.id, { clientId: client_id });
     res.json(data);
   } catch (e) { next(e); }
 }
 
 export async function getBoard(req, res, next) {
   try {
-    const data = await svc.getBoard(req.user.id, req.params.boardId);
+    const data = await svc.getBoard(req.org.id, req.params.boardId);
     res.json(data);
   } catch (e) { next(e); }
 }
 
 export async function updateBoard(req, res, next) {
   try {
-    const data = await svc.updateBoard(req.user.id, req.params.boardId, req.body);
+    const data = await svc.updateBoard(req.org.id, req.params.boardId, req.body);
     res.json(data);
   } catch (e) { next(e); }
 }
 
 export async function deleteBoard(req, res, next) {
   try {
-    const data = await svc.deleteBoard(req.user.id, req.params.boardId);
+    const data = await svc.deleteBoard(req.org.id, req.params.boardId);
     res.json(data);
   } catch (e) { next(e); }
 }
 
 export async function duplicateBoard(req, res, next) {
   try {
-    const data = await svc.duplicateBoard(req.user.id, req.params.boardId, req.body);
+    const data = await svc.duplicateBoard(req.org.id, req.params.boardId, req.body);
     res.status(201).json(data);
   } catch (e) { next(e); }
 }
@@ -51,35 +51,35 @@ export async function duplicateBoard(req, res, next) {
 
 export async function addShot(req, res, next) {
   try {
-    const data = await svc.addShot(req.user.id, req.params.boardId, req.body);
+    const data = await svc.addShot(req.org.id, req.params.boardId, req.body);
     res.status(201).json(data);
   } catch (e) { next(e); }
 }
 
 export async function updateShot(req, res, next) {
   try {
-    const data = await svc.updateShot(req.user.id, req.params.shotId, req.body);
+    const data = await svc.updateShot(req.org.id, req.params.shotId, req.body);
     res.json(data);
   } catch (e) { next(e); }
 }
 
 export async function deleteShot(req, res, next) {
   try {
-    const data = await svc.deleteShot(req.user.id, req.params.shotId);
+    const data = await svc.deleteShot(req.org.id, req.params.shotId);
     res.json(data);
   } catch (e) { next(e); }
 }
 
 export async function reorderShots(req, res, next) {
   try {
-    const data = await svc.reorderShots(req.user.id, req.params.boardId, req.body.shotIds);
+    const data = await svc.reorderShots(req.org.id, req.params.boardId, req.body.shotIds);
     res.json(data);
   } catch (e) { next(e); }
 }
 
 export async function toggleShotComplete(req, res, next) {
   try {
-    const data = await svc.toggleShotComplete(req.user.id, req.params.shotId);
+    const data = await svc.toggleShotComplete(req.org.id, req.params.shotId);
     res.json(data);
   } catch (e) { next(e); }
 }
@@ -90,7 +90,7 @@ export async function uploadImage(req, res, next) {
   try {
     if (!req.file) return res.status(400).json({ message: 'No image file provided' });
     const data = await svc.uploadImage(
-      req.user.id,
+      req.org.id,
       req.params.shotId,
       req.file.buffer,
       req.file.originalname,
@@ -102,7 +102,7 @@ export async function uploadImage(req, res, next) {
 
 export async function deleteImage(req, res, next) {
   try {
-    const data = await svc.deleteImage(req.user.id, req.params.imageId);
+    const data = await svc.deleteImage(req.org.id, req.params.imageId);
     res.json(data);
   } catch (e) { next(e); }
 }
@@ -111,7 +111,7 @@ export async function deleteImage(req, res, next) {
 
 export async function addComment(req, res, next) {
   try {
-    const data = await svc.addComment(req.user.id, req.params.shotId, req.body);
+    const data = await svc.addComment(req.org.id, req.params.shotId, req.body);
     res.status(201).json(data);
   } catch (e) { next(e); }
 }
@@ -120,7 +120,7 @@ export async function addComment(req, res, next) {
 
 export async function exportPdf(req, res, next) {
   try {
-    const result = await exportMoodBoardPdf(req.user.id, req.params.boardId);
+    const result = await exportMoodBoardPdf(req.org.id, req.params.boardId);
     if (result.pdfUrl) {
       res.json({ pdfUrl: result.pdfUrl });
     } else {

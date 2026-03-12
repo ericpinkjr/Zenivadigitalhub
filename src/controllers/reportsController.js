@@ -5,21 +5,21 @@ import { ApiError } from '../utils/apiError.js';
 export async function listReports(req, res, next) {
   try {
     const { clientId } = req.params;
-    const data = await reportsService.getReports(req.user.id, clientId);
+    const data = await reportsService.getReports(req.org.id, clientId);
     res.json(data);
   } catch (e) { next(e); }
 }
 
 export async function listAllReports(req, res, next) {
   try {
-    const data = await reportsService.getAllReports(req.user.id);
+    const data = await reportsService.getAllReports(req.org.id);
     res.json(data);
   } catch (e) { next(e); }
 }
 
 export async function createReport(req, res, next) {
   try {
-    const data = await reportsService.saveReport(req.user.id, req.body);
+    const data = await reportsService.saveReport(req.org.id, req.body);
     res.status(201).json(data);
   } catch (e) { next(e); }
 }
@@ -27,7 +27,7 @@ export async function createReport(req, res, next) {
 export async function updateReport(req, res, next) {
   try {
     const { reportId } = req.params;
-    const data = await reportsService.patchReport(req.user.id, reportId, req.body);
+    const data = await reportsService.patchReport(req.org.id, reportId, req.body);
     res.json(data);
   } catch (e) { next(e); }
 }
@@ -58,7 +58,7 @@ export async function autoGenerateReport(req, res, next) {
     }
 
     console.log(`[AutoGenerate] Starting for client=${clientId}, month=${month}, year=${year}`);
-    const result = await generateReportService(req.user.id, clientId, month, parseInt(year));
+    const result = await generateReportService(req.org.id, clientId, month, parseInt(year));
     console.log(`[AutoGenerate] Success — report id=${result.report?.id}`);
     res.status(201).json(result);
   } catch (e) {

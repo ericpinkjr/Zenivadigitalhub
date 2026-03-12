@@ -5,33 +5,33 @@ const BUCKET = 'mood-board-images';
 
 // ── Helpers ──
 
-async function verifyBoardOwner(ownerId, boardId) {
+async function verifyBoardOwner(orgId, boardId) {
   const { data, error } = await supabaseAdmin
     .from('mood_boards')
     .select('id')
     .eq('id', boardId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
   if (error || !data) throw new ApiError(404, 'Board not found');
   return data;
 }
 
-async function verifyShotOwner(ownerId, shotId) {
+async function verifyShotOwner(orgId, shotId) {
   const { data, error } = await supabaseAdmin
     .from('mood_board_shots')
-    .select('id, board_id, mood_boards!inner(owner_id)')
+    .select('id, board_id, mood_boards!inner(org_id)')
     .eq('id', shotId)
     .single();
   if (error || !data) throw new ApiError(404, 'Shot not found');
-  if (data.mood_boards.owner_id !== ownerId) throw new ApiError(403, 'Forbidden');
+  if (data.mood_boards.org_id !== orgId) throw new ApiError(403, 'Forbidden');
   return data;
 }
 
 // ── Boards ──
 
-export async function createBoard(ownerId, { name, clientId, description, theme, isTemplate } = {}) {
+export async function createBoard(orgId, { name, clientId, description, theme, isTemplate } = {}) {
   const row = {
-    owner_id: ownerId,
+    org_id: orgId,
     name: name || 'Untitled Board',
     client_id: clientId || null,
     description: description || null,
@@ -47,11 +47,11 @@ export async function createBoard(ownerId, { name, clientId, description, theme,
   return data;
 }
 
-export async function listBoards(ownerId, { clientId } = {}) {
+export async function listBoards(orgId, { clientId } = {}) {
   let query = supabaseAdmin
     .from('mood_boards')
     .select('*, mood_board_shots(id), clients(name)')
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .order('updated_at', { ascending: false });
   if (clientId) query = query.eq('client_id', clientId);
   const { data, error } = await query;
@@ -63,8 +63,8 @@ export async function listBoards(ownerId, { clientId } = {}) {
   }));
 }
 
-export async function getBoard(ownerId, boardId) {
-  await verifyBoardOwner(ownerId, boardId);
+export async function getBoard(orgId, boardId) {
+  await verifyBoardOwner(orgId, boardId);
 
   const { data: board, error } = await supabaseAdmin
     .from('mood_boards')
@@ -90,8 +90,8 @@ export async function getBoard(ownerId, boardId) {
   return board;
 }
 
-export async function updateBoard(ownerId, boardId, updates) {
-  await verifyBoardOwner(ownerId, boardId);
+export async function updateBoard(orgId, boardId, updates) {
+  await verifyBoardOwner(orgId, boardId);
   const allowed = ['name', 'description', 'client_id', 'theme', 'status', 'is_template'];
   const patch = { updated_at: new Date().toISOString() };
   for (const k of allowed) {
@@ -107,8 +107,8 @@ export async function updateBoard(ownerId, boardId, updates) {
   return data;
 }
 
-export async function deleteBoard(ownerId, boardId) {
-  await verifyBoardOwner(ownerId, boardId);
+export async function deleteBoard(orgId, boardId) {
+  await verifyBoardOwner(orgId, boardId);
 
   // Delete images from storage
   const { data: shots } = await supabaseAdmin
@@ -136,10 +136,10 @@ export async function deleteBoard(ownerId, boardId) {
   return { deleted: true };
 }
 
-export async function duplicateBoard(ownerId, boardId, { name, clientId } = {}) {
-  const original = await getBoard(ownerId, boardId);
+export async function duplicateBoard(orgId, boardId, { name, clientId } = {}) {
+  const original = await getBoard(orgId, boardId);
 
-  const newBoard = await createBoard(ownerId, {
+  const newBoard = await createBoard(orgId, {
     name: name || `${original.name} (Copy)`,
     clientId: clientId || original.client_id,
     description: original.description,
@@ -173,13 +173,13 @@ export async function duplicateBoard(ownerId, boardId, { name, clientId } = {}) 
     }
   }
 
-  return getBoard(ownerId, newBoard.id);
+  return getBoard(orgId, newBoard.id);
 }
 
 // ── Shots ──
 
-export async function addShot(ownerId, boardId, { title, description, position } = {}) {
-  await verifyBoardOwner(ownerId, boardId);
+export async function addShot(orgId, boardId, { title, description, position } = {}) {
+  await verifyBoardOwner(orgId, boardId);
 
   if (position === undefined) {
     const { count } = await supabaseAdmin
@@ -200,8 +200,8 @@ export async function addShot(ownerId, boardId, { title, description, position }
   return data;
 }
 
-export async function updateShot(ownerId, shotId, updates) {
-  const shot = await verifyShotOwner(ownerId, shotId);
+export async function updateShot(orgId, shotId, updates) {
+  const shot = await verifyShotOwner(orgId, shotId);
   const allowed = ['title', 'description', 'notes', 'position'];
   const patch = { updated_at: new Date().toISOString() };
   for (const k of allowed) {
@@ -219,8 +219,8 @@ export async function updateShot(ownerId, shotId, updates) {
   return data;
 }
 
-export async function deleteShot(ownerId, shotId) {
-  const shot = await verifyShotOwner(ownerId, shotId);
+export async function deleteShot(orgId, shotId) {
+  const shot = await verifyShotOwner(orgId, shotId);
 
   // Delete images from storage
   const { data: images } = await supabaseAdmin
@@ -238,8 +238,8 @@ export async function deleteShot(ownerId, shotId) {
   return { deleted: true };
 }
 
-export async function reorderShots(ownerId, boardId, shotIds) {
-  await verifyBoardOwner(ownerId, boardId);
+export async function reorderShots(orgId, boardId, shotIds) {
+  await verifyBoardOwner(orgId, boardId);
   for (let i = 0; i < shotIds.length; i++) {
     await supabaseAdmin
       .from('mood_board_shots')
@@ -251,8 +251,8 @@ export async function reorderShots(ownerId, boardId, shotIds) {
   return { reordered: true };
 }
 
-export async function toggleShotComplete(ownerId, shotId) {
-  const shot = await verifyShotOwner(ownerId, shotId);
+export async function toggleShotComplete(orgId, shotId) {
+  const shot = await verifyShotOwner(orgId, shotId);
   const { data: current } = await supabaseAdmin
     .from('mood_board_shots')
     .select('is_completed')
@@ -278,8 +278,8 @@ export async function toggleShotComplete(ownerId, shotId) {
 
 // ── Images ──
 
-export async function uploadImage(ownerId, shotId, fileBuffer, fileName, fileSize) {
-  const shot = await verifyShotOwner(ownerId, shotId);
+export async function uploadImage(orgId, shotId, fileBuffer, fileName, fileSize) {
+  const shot = await verifyShotOwner(orgId, shotId);
 
   let ext = (fileName.split('.').pop() || 'jpg').toLowerCase();
   let buffer = fileBuffer;
@@ -324,14 +324,14 @@ export async function uploadImage(ownerId, shotId, fileBuffer, fileName, fileSiz
   return data;
 }
 
-export async function deleteImage(ownerId, imageId) {
+export async function deleteImage(orgId, imageId) {
   const { data: img, error: findErr } = await supabaseAdmin
     .from('mood_board_images')
-    .select('*, mood_board_shots!inner(board_id, mood_boards!inner(owner_id))')
+    .select('*, mood_board_shots!inner(board_id, mood_boards!inner(org_id))')
     .eq('id', imageId)
     .single();
   if (findErr || !img) throw new ApiError(404, 'Image not found');
-  if (img.mood_board_shots.mood_boards.owner_id !== ownerId) throw new ApiError(403, 'Forbidden');
+  if (img.mood_board_shots.mood_boards.org_id !== orgId) throw new ApiError(403, 'Forbidden');
 
   await supabaseAdmin.storage.from(BUCKET).remove([img.storage_path]);
   const { error } = await supabaseAdmin.from('mood_board_images').delete().eq('id', imageId);
@@ -341,8 +341,8 @@ export async function deleteImage(ownerId, imageId) {
 
 // ── Comments ──
 
-export async function addComment(ownerId, shotId, { body, authorName }) {
-  await verifyShotOwner(ownerId, shotId);
+export async function addComment(orgId, shotId, { body, authorName }) {
+  await verifyShotOwner(orgId, shotId);
   if (!body?.trim()) throw new ApiError(400, 'Comment body is required');
   const { data, error } = await supabaseAdmin
     .from('mood_board_comments')

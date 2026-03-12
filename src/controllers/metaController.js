@@ -4,8 +4,8 @@ import * as clientsService from '../services/clientsService.js';
 
 export async function syncClient(req, res, next) {
   try {
-    // Verify the user owns this client
-    await clientsService.getClientById(req.user.id, req.params.clientId);
+    // Verify the org owns this client
+    await clientsService.getClientById(req.org.id, req.params.clientId);
 
     // Sync Meta ad campaigns
     const metaResult = await syncClientMeta(req.params.clientId);

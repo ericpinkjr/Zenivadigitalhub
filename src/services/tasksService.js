@@ -1,11 +1,11 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
-export async function listTasks(ownerId, { clientId, status, dueBefore, dueAfter } = {}) {
+export async function listTasks(orgId, { clientId, status, dueBefore, dueAfter } = {}) {
   let query = supabaseAdmin
     .from('tasks')
     .select('*, clients(name, brand_color), campaigns(name)')
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .order('due_date', { ascending: true, nullsFirst: false });
 
   if (clientId) query = query.eq('client_id', clientId);
@@ -18,7 +18,7 @@ export async function listTasks(ownerId, { clientId, status, dueBefore, dueAfter
   return data;
 }
 
-export async function createTask(ownerId, taskData) {
+export async function createTask(orgId, taskData) {
   const { client_id, campaign_id, title, description, task_type, assigned_to, due_date } = taskData;
   if (!client_id || !title) throw new ApiError(400, 'client_id and title are required');
 
@@ -27,14 +27,14 @@ export async function createTask(ownerId, taskData) {
     .from('clients')
     .select('id')
     .eq('id', client_id)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
   if (clientErr) throw new ApiError(404, 'Client not found');
 
   const { data, error } = await supabaseAdmin
     .from('tasks')
     .insert({
-      owner_id: ownerId,
+      org_id: orgId,
       client_id,
       campaign_id: campaign_id || null,
       title,
@@ -50,12 +50,12 @@ export async function createTask(ownerId, taskData) {
   return data;
 }
 
-export async function updateTask(ownerId, taskId, updates) {
+export async function updateTask(orgId, taskId, updates) {
   const { data: existing, error: findErr } = await supabaseAdmin
     .from('tasks')
     .select('id')
     .eq('id', taskId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
   if (findErr || !existing) throw new ApiError(404, 'Task not found');
 
@@ -79,12 +79,12 @@ export async function updateTask(ownerId, taskId, updates) {
   return data;
 }
 
-export async function deleteTask(ownerId, taskId) {
+export async function deleteTask(orgId, taskId) {
   const { error: findErr } = await supabaseAdmin
     .from('tasks')
     .select('id')
     .eq('id', taskId)
-    .eq('owner_id', ownerId)
+    .eq('org_id', orgId)
     .single();
   if (findErr) throw new ApiError(404, 'Task not found');
 
