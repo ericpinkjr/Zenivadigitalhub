@@ -50,7 +50,7 @@ export async function createBoard(ownerId, { name, clientId, description, theme,
 export async function listBoards(ownerId, { clientId } = {}) {
   let query = supabaseAdmin
     .from('mood_boards')
-    .select('*, mood_board_shots(id)')
+    .select('*, mood_board_shots(id), clients(name)')
     .eq('owner_id', ownerId)
     .order('updated_at', { ascending: false });
   if (clientId) query = query.eq('client_id', clientId);
