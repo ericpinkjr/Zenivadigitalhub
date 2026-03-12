@@ -46,7 +46,7 @@ export async function listMembers(orgId) {
 
   if (error) throw new ApiError(500, error.message);
 
-  // Fetch profiles for each member
+  // Fetch profiles and emails for each member
   if (members && members.length > 0) {
     const userIds = members.map(m => m.user_id);
     const { data: profiles } = await supabaseAdmin
@@ -57,9 +57,19 @@ export async function listMembers(orgId) {
     const profileMap = {};
     (profiles || []).forEach(p => { profileMap[p.id] = p; });
 
+    // Fetch emails from auth.users
+    const emailMap = {};
+    for (const uid of userIds) {
+      try {
+        const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(uid);
+        if (user) emailMap[uid] = user.email;
+      } catch { /* ignore */ }
+    }
+
     return members.map(m => ({
       ...m,
       profile: profileMap[m.user_id] || null,
+      email: emailMap[m.user_id] || null,
     }));
   }
 
