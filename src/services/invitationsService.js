@@ -2,7 +2,9 @@ import crypto from 'crypto';
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
-export async function createInvitation(orgId, userId, { email, role, teamId }) {
+export async function createInvitation(orgId, userId, { email, role, teamId, team_id }) {
+  // Accept both camelCase and snake_case for team ID
+  const resolvedTeamId = teamId || team_id || null;
   if (!email) throw new ApiError(400, 'email is required');
 
   // Check for an existing pending invitation for this email in this org
@@ -24,7 +26,7 @@ export async function createInvitation(orgId, userId, { email, role, teamId }) {
       org_id: orgId,
       email,
       role: role || 'member',
-      team_id: teamId || null,
+      team_id: resolvedTeamId,
       token,
       invited_by: userId,
     })
