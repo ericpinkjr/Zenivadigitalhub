@@ -1,6 +1,15 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
+// Helper: attach email from auth.users to a profile object
+async function attachEmail(profile) {
+  try {
+    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+    if (user) profile.email = user.email;
+  } catch { /* ignore */ }
+  return profile;
+}
+
 export async function getProfile(userId) {
   const { data, error } = await supabaseAdmin
     .from('profiles')
@@ -8,6 +17,7 @@ export async function getProfile(userId) {
     .eq('id', userId)
     .single();
 
+  let profile;
   if (error) {
     // Profile doesn't exist yet — auto-create one
     const { data: user } = await supabaseAdmin.auth.admin.getUserById(userId);
@@ -19,10 +29,12 @@ export async function getProfile(userId) {
       .single();
 
     if (insertError) throw new ApiError(500, 'Failed to create profile: ' + insertError.message);
-    return newProfile;
+    profile = newProfile;
+  } else {
+    profile = data;
   }
 
-  return data;
+  return attachEmail(profile);
 }
 
 export async function updateProfile(userId, updates) {
@@ -30,6 +42,7 @@ export async function updateProfile(userId, updates) {
   const patch = {};
   if (updates.full_name !== undefined) patch.full_name = updates.full_name;
   if (updates.title !== undefined) patch.title = updates.title;
+  if (updates.bio !== undefined) patch.bio = updates.bio;
   if (updates.avatar_url !== undefined) patch.avatar_url = updates.avatar_url;
 
   const { data, error } = await supabaseAdmin
@@ -40,7 +53,34 @@ export async function updateProfile(userId, updates) {
     .single();
 
   if (error) throw new ApiError(400, error.message);
-  return data;
+  return attachEmail(data);
+}
+
+export async function changeEmail(userId, newEmail) {
+  if (!newEmail || !newEmail.includes('@')) throw new ApiError(400, 'Valid email is required');
+
+  const { data, error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+    email: newEmail,
+  });
+
+  if (error) throw new ApiError(400, error.message);
+  return { message: 'Confirmation email sent to ' + newEmail };
+}
+
+export async function resetPassword(userId) {
+  // Get the user's email first
+  const { data: { user }, error: userErr } = await supabaseAdmin.auth.admin.getUserById(userId);
+  if (userErr || !user) throw new ApiError(400, 'Could not find user');
+
+  const appUrl = process.env.APP_URL || 'https://reports.zenivadigital.com';
+  const { error } = await supabaseAdmin.auth.admin.generateLink({
+    type: 'recovery',
+    email: user.email,
+    options: { redirectTo: appUrl },
+  });
+
+  if (error) throw new ApiError(400, error.message);
+  return { message: 'Password reset email sent to ' + user.email };
 }
 
 export async function uploadAvatar(userId, fileBuffer, mimeType) {
@@ -71,5 +111,5 @@ export async function uploadAvatar(userId, fileBuffer, mimeType) {
     .single();
 
   if (error) throw new ApiError(400, error.message);
-  return data;
+  return attachEmail(data);
 }

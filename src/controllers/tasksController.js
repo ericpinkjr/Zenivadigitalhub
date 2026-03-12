@@ -1,10 +1,21 @@
 import * as tasksService from '../services/tasksService.js';
+import * as teamsService from '../services/teamsService.js';
 
 export async function listTasks(req, res, next) {
   try {
-    const { client_id, status, due_before, due_after } = req.query;
+    const { client_id, status, due_before, due_after, assigned_to_user_id, team_id } = req.query;
+
+    let assignedToUserIds = null;
+    if (team_id) {
+      const teams = await teamsService.listTeams(req.org.id);
+      const team = teams.find(t => t.id === team_id);
+      if (team) assignedToUserIds = team.team_members.map(m => m.user_id);
+    }
+
     const data = await tasksService.listTasks(req.org.id, {
       clientId: client_id, status, dueBefore: due_before, dueAfter: due_after,
+      assignedToUserId: assigned_to_user_id,
+      assignedToUserIds,
     });
     res.json(data);
   } catch (e) { next(e); }

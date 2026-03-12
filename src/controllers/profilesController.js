@@ -14,6 +14,20 @@ export async function updateProfile(req, res, next) {
   } catch (e) { next(e); }
 }
 
+export async function changeEmail(req, res, next) {
+  try {
+    const data = await profilesService.changeEmail(req.user.id, req.body.email);
+    res.json(data);
+  } catch (e) { next(e); }
+}
+
+export async function resetPassword(req, res, next) {
+  try {
+    const data = await profilesService.resetPassword(req.user.id);
+    res.json(data);
+  } catch (e) { next(e); }
+}
+
 export async function uploadAvatar(req, res, next) {
   try {
     if (!req.file) {
