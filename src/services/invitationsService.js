@@ -34,8 +34,10 @@ export async function createInvitation(orgId, userId, { email, role, teamId }) {
   if (error) throw new ApiError(400, error.message);
 
   // Send Supabase invite email
+  const appUrl = process.env.APP_URL || 'https://reports.zenivadigital.com';
   const { error: inviteErr } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
     data: { invited_to_org: orgId },
+    redirectTo: `${appUrl}?invite=${token}`,
   });
   if (inviteErr) throw new ApiError(500, inviteErr.message);
 
