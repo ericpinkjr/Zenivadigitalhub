@@ -13,9 +13,14 @@ export async function listClients(orgId) {
 }
 
 export async function createClient(orgId, clientData) {
+  // Strip empty strings → null so Postgres doesn't reject type mismatches (e.g. invoice_day expects int)
+  const cleaned = Object.fromEntries(
+    Object.entries(clientData).map(([k, v]) => [k, v === '' ? null : v])
+  );
+
   const { data, error } = await supabaseAdmin
     .from('clients')
-    .insert({ ...clientData, org_id: orgId })
+    .insert({ ...cleaned, org_id: orgId })
     .select()
     .single();
 
@@ -36,9 +41,13 @@ export async function getClientById(orgId, clientId) {
 }
 
 export async function updateClient(orgId, clientId, updates) {
+  const cleaned = Object.fromEntries(
+    Object.entries(updates).map(([k, v]) => [k, v === '' ? null : v])
+  );
+
   const { data, error } = await supabaseAdmin
     .from('clients')
-    .update(updates)
+    .update(cleaned)
     .eq('id', clientId)
     .eq('org_id', orgId)
     .select()
