@@ -26,10 +26,10 @@ async function getPageConnection(clientId) {
 async function fetchRecentMediaFromApi(igBusinessAccountId) {
   try {
     const data = await metaFetch(`/${igBusinessAccountId}/media`, {
-      fields: 'id',
+      fields: 'id,caption,permalink,timestamp,thumbnail_url,media_type,like_count,comments_count',
       limit: '20',
     });
-    return (data.data || []).map(m => m.id);
+    return data.data || [];
   } catch (err) {
     console.error(`[COMMUNITY] Failed to fetch media from API:`, err.message);
     return [];
@@ -51,26 +51,50 @@ export async function syncCommentsForClient(clientId) {
   const igBusinessAccountId = conn.ig_business_account_id;
   const orgId = conn.org_id;
 
-  // Fetch recent media directly from IG API (no dependency on ig_media_metrics)
-  let mediaIds = await fetchRecentMediaFromApi(igBusinessAccountId);
+  // Fetch recent media directly from IG API with full details
+  let mediaItems = await fetchRecentMediaFromApi(igBusinessAccountId);
 
   // Fallback: if API fetch returned nothing, try the local DB
-  if (mediaIds.length === 0) {
+  if (mediaItems.length === 0) {
     const { data: dbPosts } = await supabaseAdmin
       .from('ig_media_metrics')
       .select('ig_media_id')
       .eq('client_id', clientId)
       .order('timestamp', { ascending: false })
       .limit(20);
-    mediaIds = (dbPosts || []).map(p => p.ig_media_id);
+    mediaItems = (dbPosts || []).map(p => ({ id: p.ig_media_id }));
   }
 
-  if (mediaIds.length === 0) {
+  if (mediaItems.length === 0) {
     console.log(`[COMMUNITY] No media found for client ${clientId}`);
     return { comments_synced: 0, posts_checked: 0 };
   }
 
-  const posts = mediaIds.map(id => ({ ig_media_id: id }));
+  // Upsert media details into ig_media_metrics so captions are available for display
+  for (const m of mediaItems) {
+    if (m.caption || m.permalink || m.timestamp) {
+      try {
+        await supabaseAdmin
+          .from('ig_media_metrics')
+          .upsert({
+            client_id: clientId,
+            ig_media_id: m.id,
+            caption: m.caption || null,
+            permalink: m.permalink || null,
+            thumbnail_url: m.thumbnail_url || null,
+            media_type: m.media_type || null,
+            like_count: m.like_count || 0,
+            comments_count: m.comments_count || 0,
+            timestamp: m.timestamp,
+          }, { onConflict: 'client_id,ig_media_id', ignoreDuplicates: false });
+      } catch (err) {
+        // Non-critical — just for display context
+        console.error(`[COMMUNITY] Failed to upsert media context for ${m.id}:`, err.message);
+      }
+    }
+  }
+
+  const posts = mediaItems.map(m => ({ ig_media_id: m.id }));
 
   let totalSynced = 0;
 
