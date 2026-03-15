@@ -106,7 +106,7 @@ export async function fetchIgMedia(igUserId, since) {
   const results = [];
   let url = `/${igUserId}/media`;
   let params = {
-    fields: 'timestamp,like_count,comments_count,media_type,caption,permalink,id',
+    fields: 'timestamp,like_count,comments_count,media_type,caption,permalink,id,thumbnail_url',
     limit: '50',
   };
 
@@ -273,6 +273,7 @@ export async function syncClientInstagram(clientId) {
         reach: insights.reach || 0,
         saved: insights.saved || 0,
         shares: insights.shares || 0,
+        thumbnail_url: item.thumbnail_url || null,
         synced_at: new Date().toISOString(),
       };
 

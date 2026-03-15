@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { auth } from '../middleware/auth.js';
 import * as ctrl from '../controllers/clientsController.js';
-import { getHashtags } from '../controllers/hashtagController.js';
+import {
+  getHashtags,
+  getHashtagPosts,
+  getHashtagTrend,
+  getClientPosts,
+  syncInstagram,
+} from '../controllers/hashtagController.js';
 
 const router = Router();
 
@@ -17,5 +23,9 @@ router.get('/:id/campaigns', ctrl.getCampaigns);
 router.get('/:id/campaign-metrics', ctrl.getCampaignMetrics);
 router.get('/:id/ig-metrics', ctrl.getIgMetrics);
 router.get('/:id/hashtags', getHashtags);
+router.get('/:id/hashtags/:hashtag/posts', getHashtagPosts);
+router.get('/:id/hashtags/:hashtag/trend', getHashtagTrend);
+router.get('/:id/ig-posts', getClientPosts);
+router.post('/:id/sync-instagram', syncInstagram);
 
 export default router;
