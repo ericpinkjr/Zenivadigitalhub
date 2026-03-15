@@ -121,10 +121,15 @@ export async function fetchIgMedia(igUserId, since) {
       console.warn(`[IG] No media returned from API for IG user ${igUserId}. Response keys: ${Object.keys(data).join(', ')}`);
     }
 
+    if (items.length > 0) {
+      console.log(`[IG] First item timestamp: ${items[0].timestamp}, last item timestamp: ${items[items.length - 1].timestamp}`);
+    }
+
+    const sinceDate = since ? new Date(since) : null;
     for (const item of items) {
-      const itemDate = new Date(item.timestamp);
-      if (since && itemDate < new Date(since)) {
-        return results; // Reached items older than our window
+      if (sinceDate) {
+        const itemDate = new Date(item.timestamp);
+        if (itemDate < sinceDate) continue; // Skip items older than our window
       }
       results.push(item);
     }
