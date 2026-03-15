@@ -2,7 +2,7 @@ import { supabaseAdmin } from '../config/supabase.js';
 import { META_ACCESS_TOKEN } from '../config/env.js';
 import { ApiError } from '../utils/apiError.js';
 
-const META_API_BASE = 'https://graph.facebook.com/v19.0';
+const META_API_BASE = 'https://graph.facebook.com/v21.0';
 
 export async function metaFetch(endpoint, params = {}) {
   const url = new URL(`${META_API_BASE}${endpoint}`);
@@ -104,7 +104,9 @@ export async function syncClientMeta(clientId) {
 
   if (!META_ACCESS_TOKEN) throw new ApiError(500, 'Meta access token not configured');
 
-  const adAccountId = client.meta_ad_account_id;
+  // Ensure ad account ID has the act_ prefix
+  const rawId = client.meta_ad_account_id;
+  const adAccountId = rawId.startsWith('act_') ? rawId : `act_${rawId}`;
 
   // 2. Fetch campaigns from Meta
   const metaCampaigns = await fetchCampaigns(adAccountId);
