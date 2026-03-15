@@ -59,3 +59,32 @@ export async function getStats(req, res, next) {
     res.json(data);
   } catch (e) { next(e); }
 }
+
+// ── Global (all-client) endpoints ──
+
+export async function syncAllComments(req, res, next) {
+  try {
+    const data = await engagementService.syncAllComments(req.org.id);
+    res.json(data);
+  } catch (e) { next(e); }
+}
+
+export async function listAllComments(req, res, next) {
+  try {
+    const { filter, search, limit, offset } = req.query;
+    const data = await engagementService.getAllComments(req.org.id, {
+      filter,
+      search,
+      limit: limit ? parseInt(limit) : undefined,
+      offset: offset ? parseInt(offset) : undefined,
+    });
+    res.json(data);
+  } catch (e) { next(e); }
+}
+
+export async function getAllStats(req, res, next) {
+  try {
+    const data = await engagementService.getAllStats(req.org.id);
+    res.json(data);
+  } catch (e) { next(e); }
+}

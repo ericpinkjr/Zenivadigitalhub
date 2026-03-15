@@ -401,3 +401,202 @@ export async function getEngagementStats(orgId, clientId) {
     needs_reply: needsReply,
   };
 }
+
+/**
+ * Get comments across ALL clients in the org, grouped by client then by post.
+ */
+export async function getAllComments(orgId, { filter = 'all', search, limit = 50, offset = 0 } = {}) {
+  // Get all clients belonging to this org
+  const { data: orgClients, error: clientsErr } = await supabaseAdmin
+    .from('clients')
+    .select('id, name, brand_color, logo_url, ig_handle')
+    .eq('org_id', orgId);
+
+  if (clientsErr || !orgClients || orgClients.length === 0) return [];
+
+  const clientIds = orgClients.map(c => c.id);
+  const clientMap = {};
+  for (const c of orgClients) clientMap[c.id] = c;
+
+  // Get top-level comments across all clients
+  let query = supabaseAdmin
+    .from('social_comments')
+    .select('*')
+    .in('client_id', clientIds)
+    .is('parent_comment_id', null)
+    .eq('is_hidden', false)
+    .order('timestamp', { ascending: false });
+
+  if (search) {
+    query = query.or(`text.ilike.%${search}%,username.ilike.%${search}%`);
+  }
+
+  if (filter === 'needs_reply') {
+    query = query.eq('is_from_page', false);
+  }
+
+  query = query.range(offset, offset + limit - 1);
+
+  const { data: comments, error } = await query;
+  if (error) throw new ApiError(500, error.message);
+  if (!comments || comments.length === 0) return [];
+
+  // Fetch replies
+  const commentIds = comments.map(c => c.comment_id);
+  const { data: replies } = await supabaseAdmin
+    .from('social_comments')
+    .select('*')
+    .in('client_id', clientIds)
+    .in('parent_comment_id', commentIds)
+    .order('timestamp', { ascending: true });
+
+  const repliesByParent = {};
+  for (const r of (replies || [])) {
+    if (!repliesByParent[r.parent_comment_id]) repliesByParent[r.parent_comment_id] = [];
+    repliesByParent[r.parent_comment_id].push(r);
+  }
+
+  // Enrich with replies
+  let enriched = comments.map(c => ({
+    ...c,
+    replies: repliesByParent[c.comment_id] || [],
+    has_page_reply: (repliesByParent[c.comment_id] || []).some(r => r.is_from_page),
+  }));
+
+  if (filter === 'needs_reply') {
+    enriched = enriched.filter(c => !c.has_page_reply);
+  } else if (filter === 'replied') {
+    enriched = enriched.filter(c => c.has_page_reply);
+  }
+
+  // Get post context
+  const mediaIds = [...new Set(enriched.map(c => c.media_id))];
+  const { data: posts } = await supabaseAdmin
+    .from('ig_media_metrics')
+    .select('ig_media_id, caption, permalink, thumbnail_url, like_count, comments_count, timestamp, media_type, client_id')
+    .in('client_id', clientIds)
+    .in('ig_media_id', mediaIds);
+
+  const postsByMediaId = {};
+  for (const p of (posts || [])) {
+    postsByMediaId[p.ig_media_id] = p;
+  }
+
+  // Group by client, then by post
+  const byClient = {};
+  for (const c of enriched) {
+    if (!byClient[c.client_id]) {
+      byClient[c.client_id] = {
+        client: clientMap[c.client_id] || { id: c.client_id, name: 'Unknown' },
+        posts: {},
+      };
+    }
+    if (!byClient[c.client_id].posts[c.media_id]) {
+      byClient[c.client_id].posts[c.media_id] = {
+        post: postsByMediaId[c.media_id] || { ig_media_id: c.media_id },
+        comments: [],
+      };
+    }
+    byClient[c.client_id].posts[c.media_id].comments.push(c);
+  }
+
+  // Convert to array, sorted by most recent comment per client
+  return Object.values(byClient).map(g => ({
+    ...g,
+    posts: Object.values(g.posts).sort((a, b) => {
+      const aTime = a.comments[0]?.timestamp || '';
+      const bTime = b.comments[0]?.timestamp || '';
+      return bTime.localeCompare(aTime);
+    }),
+  })).sort((a, b) => {
+    const aTime = a.posts[0]?.comments[0]?.timestamp || '';
+    const bTime = b.posts[0]?.comments[0]?.timestamp || '';
+    return bTime.localeCompare(aTime);
+  });
+}
+
+/**
+ * Get aggregate engagement stats across ALL clients in the org.
+ */
+export async function getAllStats(orgId) {
+  const { data: orgClients } = await supabaseAdmin
+    .from('clients')
+    .select('id')
+    .eq('org_id', orgId);
+
+  if (!orgClients || orgClients.length === 0) {
+    return { total_comments: 0, needs_reply: 0, clients_with_comments: 0 };
+  }
+
+  const clientIds = orgClients.map(c => c.id);
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+  // Total external comments (last 30 days)
+  const { count: totalComments } = await supabaseAdmin
+    .from('social_comments')
+    .select('id', { count: 'exact', head: true })
+    .in('client_id', clientIds)
+    .is('parent_comment_id', null)
+    .eq('is_hidden', false)
+    .eq('is_from_page', false)
+    .gte('timestamp', thirtyDaysAgo.toISOString());
+
+  // Replied comment IDs
+  const { data: repliedComments } = await supabaseAdmin
+    .from('social_comments')
+    .select('parent_comment_id')
+    .in('client_id', clientIds)
+    .eq('is_from_page', true)
+    .not('parent_comment_id', 'is', null);
+
+  const repliedSet = new Set((repliedComments || []).map(r => r.parent_comment_id));
+
+  // Top-level unreplied
+  const { data: topLevel } = await supabaseAdmin
+    .from('social_comments')
+    .select('comment_id, client_id')
+    .in('client_id', clientIds)
+    .is('parent_comment_id', null)
+    .eq('is_hidden', false)
+    .eq('is_from_page', false)
+    .gte('timestamp', thirtyDaysAgo.toISOString());
+
+  const unreplied = (topLevel || []).filter(c => !repliedSet.has(c.comment_id));
+  const clientsWithComments = new Set((topLevel || []).map(c => c.client_id)).size;
+
+  return {
+    total_comments: totalComments || 0,
+    needs_reply: unreplied.length,
+    clients_with_comments: clientsWithComments,
+  };
+}
+
+/**
+ * Sync comments for ALL clients in the org that have IG connections.
+ */
+export async function syncAllComments(orgId) {
+  const { data: orgClients } = await supabaseAdmin
+    .from('clients')
+    .select('id, name')
+    .eq('org_id', orgId);
+
+  if (!orgClients || orgClients.length === 0) return { clients_synced: 0, total_comments: 0 };
+
+  let totalComments = 0;
+  let clientsSynced = 0;
+
+  for (const client of orgClients) {
+    try {
+      const result = await syncCommentsForClient(client.id);
+      if (!result.skipped) {
+        totalComments += result.comments_synced;
+        clientsSynced++;
+      }
+    } catch (err) {
+      console.error(`[COMMUNITY] Sync-all failed for ${client.name}:`, err.message);
+    }
+  }
+
+  return { clients_synced: clientsSynced, total_comments: totalComments };
+}

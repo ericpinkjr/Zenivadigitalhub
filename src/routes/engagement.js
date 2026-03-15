@@ -6,11 +6,20 @@ import {
   replyToComment,
   hideComment,
   getStats,
+  syncAllComments,
+  listAllComments,
+  getAllStats,
 } from '../controllers/engagementController.js';
 
 const router = Router();
 router.use(auth);
 
+// Global (all-client) routes — must come before :clientId routes
+router.post('/all/sync', syncAllComments);
+router.get('/all/comments', listAllComments);
+router.get('/all/stats', getAllStats);
+
+// Per-client routes
 router.post('/:clientId/sync', syncComments);
 router.get('/:clientId/comments', listComments);
 router.post('/comments/:commentId/reply', replyToComment);
