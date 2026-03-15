@@ -9,7 +9,7 @@ export async function list(req, res, next) {
 
 export async function create(req, res, next) {
   try {
-    const data = await clientsService.createClient(req.org.id, req.body);
+    const data = await clientsService.createClient(req.org.id, req.user.id, req.body);
     res.status(201).json(data);
   } catch (err) { next(err); }
 }
