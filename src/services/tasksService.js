@@ -29,7 +29,7 @@ export async function listTasks(orgId, { clientId, status, dueBefore, dueAfter, 
   return data;
 }
 
-export async function createTask(orgId, taskData) {
+export async function createTask(orgId, userId, taskData) {
   const { client_id, campaign_id, title, description, task_type, assigned_to, assigned_to_user_id, due_date } = taskData;
   if (!client_id || !title) throw new ApiError(400, 'client_id and title are required');
 
@@ -46,6 +46,7 @@ export async function createTask(orgId, taskData) {
     .from('tasks')
     .insert({
       org_id: orgId,
+      owner_id: userId,
       client_id,
       campaign_id: campaign_id || null,
       title,

@@ -23,7 +23,7 @@ export async function listTasks(req, res, next) {
 
 export async function createTask(req, res, next) {
   try {
-    const data = await tasksService.createTask(req.org.id, req.body);
+    const data = await tasksService.createTask(req.org.id, req.user.id, req.body);
     res.status(201).json(data);
   } catch (e) { next(e); }
 }
