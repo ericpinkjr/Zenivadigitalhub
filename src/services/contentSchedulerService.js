@@ -1,7 +1,9 @@
 import { supabaseAdmin } from '../config/supabase.js';
-import { metaFetch, metaPost } from './metaService.js';
+import { metaFetch, metaPost, syncClientMeta } from './metaService.js';
+import { syncClientInstagram } from './instagramService.js';
 import { META_ACCESS_TOKEN } from '../config/env.js';
 import { ApiError } from '../utils/apiError.js';
+import { logSync } from '../jobs/metaSyncCron.js';
 import crypto from 'crypto';
 
 const BUCKET = 'social-content';
@@ -62,6 +64,39 @@ export async function connectPage(orgId, { clientId, platform, pageId, pageName,
     .single();
 
   if (error) throw new ApiError(500, `Failed to connect page: ${error.message}`);
+
+  // Backfill: trigger an immediate sync so the client gets up to 30 days of
+  // historical data from Meta the moment their page is connected.
+  if (data && clientId) {
+    setImmediate(async () => {
+      console.log(`[BACKFILL] Triggering initial sync for client ${clientId} after page connection`);
+      try {
+        const metaStart = new Date().toISOString();
+        const metaResult = await syncClientMeta(clientId);
+        await logSync(clientId, 'meta_ads', 'backfill', 'success', {
+          campaigns_synced: metaResult.campaigns_synced,
+          metrics_synced: metaResult.metrics_synced,
+        }, metaStart);
+      } catch (err) {
+        console.error(`[BACKFILL] Meta ads sync failed for ${clientId}:`, err.message);
+      }
+      try {
+        const igStart = new Date().toISOString();
+        const igResult = await syncClientInstagram(clientId);
+        if (!igResult.skipped) {
+          await logSync(clientId, 'instagram', 'backfill', 'success', {
+            days_synced: igResult.days_synced,
+            media_synced: igResult.media_synced,
+            hashtags_parsed: igResult.hashtags_parsed,
+          }, igStart);
+        }
+      } catch (err) {
+        console.error(`[BACKFILL] IG sync failed for ${clientId}:`, err.message);
+      }
+      console.log(`[BACKFILL] Initial sync complete for client ${clientId}`);
+    });
+  }
+
   return data;
 }
 

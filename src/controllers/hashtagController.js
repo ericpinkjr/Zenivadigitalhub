@@ -2,6 +2,7 @@ import * as hashtagService from '../services/hashtagService.js';
 import { syncClientInstagram } from '../services/instagramService.js';
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
+import { logSync } from '../jobs/metaSyncCron.js';
 
 export async function getHashtags(req, res, next) {
   try {
@@ -80,7 +81,39 @@ export async function syncInstagram(req, res, next) {
       }
     }
 
+    const igStart = new Date().toISOString();
     const result = await syncClientInstagram(clientId);
+    await logSync(clientId, 'instagram', 'manual', result.skipped ? 'skipped' : 'success', {
+      days_synced: result.days_synced,
+      media_synced: result.media_synced,
+      hashtags_parsed: result.hashtags_parsed,
+    }, igStart);
     res.json(result);
+  } catch (e) { next(e); }
+}
+
+export async function getSyncLog(req, res, next) {
+  try {
+    const { id: clientId } = req.params;
+    const { limit } = req.query;
+
+    // Verify ownership
+    const { error: clientErr } = await supabaseAdmin
+      .from('clients')
+      .select('id')
+      .eq('id', clientId)
+      .eq('org_id', req.org.id)
+      .single();
+    if (clientErr) throw new ApiError(404, 'Client not found');
+
+    const { data, error } = await supabaseAdmin
+      .from('sync_log')
+      .select('*')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false })
+      .limit(limit ? parseInt(limit) : 20);
+
+    if (error) throw new ApiError(500, error.message);
+    res.json(data || []);
   } catch (e) { next(e); }
 }

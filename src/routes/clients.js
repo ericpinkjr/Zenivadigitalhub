@@ -7,6 +7,7 @@ import {
   getHashtagTrend,
   getClientPosts,
   syncInstagram,
+  getSyncLog,
 } from '../controllers/hashtagController.js';
 
 const router = Router();
@@ -27,5 +28,6 @@ router.get('/:id/hashtags/:hashtag/posts', getHashtagPosts);
 router.get('/:id/hashtags/:hashtag/trend', getHashtagTrend);
 router.get('/:id/ig-posts', getClientPosts);
 router.post('/:id/sync-instagram', syncInstagram);
+router.get('/:id/sync-log', getSyncLog);
 
 export default router;
