@@ -21,6 +21,7 @@ import organizationRoutes from './organizations.js';
 import invitationRoutes from './invitations.js';
 import teamRoutes from './teams.js';
 import chatRoutes from './chat.js';
+import contentSchedulerRoutes from './contentScheduler.js';
 
 const router = Router();
 
@@ -46,5 +47,6 @@ router.use('/organizations', organizationRoutes);
 router.use('/invitations', invitationRoutes);
 router.use('/teams', teamRoutes);
 router.use('/chat', chatRoutes);
+router.use('/content-scheduler', contentSchedulerRoutes);
 
 export default router;

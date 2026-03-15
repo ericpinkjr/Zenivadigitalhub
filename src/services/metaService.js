@@ -20,6 +20,24 @@ export async function metaFetch(endpoint, params = {}) {
   return json;
 }
 
+// POST to Meta Graph API using a page-level access token (for publishing)
+export async function metaPost(endpoint, pageAccessToken, body = {}) {
+  const url = new URL(`${META_API_BASE}${endpoint}`);
+
+  const res = await fetch(url.toString(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, access_token: pageAccessToken }),
+  });
+
+  const json = await res.json();
+
+  if (json.error) {
+    throw new ApiError(502, `Meta API error: ${json.error.message}`);
+  }
+  return json;
+}
+
 // Fetch all campaigns for an ad account
 async function fetchCampaigns(adAccountId) {
   const data = await metaFetch(`/${adAccountId}/campaigns`, {
