@@ -18,7 +18,7 @@ export async function listChannels(orgId, userId) {
   // Get channels with members + profiles
   const { data: channels, error: chErr } = await supabaseAdmin
     .from('chat_channels')
-    .select('*, chat_channel_members(user_id, role, profiles(id, full_name, avatar_url))')
+    .select('*, chat_channel_members(user_id, role, profiles:user_id(id, full_name, avatar_url))')
     .in('id', channelIds)
     .eq('org_id', orgId)
     .eq('is_archived', false)
