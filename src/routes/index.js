@@ -20,6 +20,7 @@ import moodboardRoutes from './moodboards.js';
 import organizationRoutes from './organizations.js';
 import invitationRoutes from './invitations.js';
 import teamRoutes from './teams.js';
+import chatRoutes from './chat.js';
 
 const router = Router();
 
@@ -44,5 +45,6 @@ router.use('/moodboards', moodboardRoutes);
 router.use('/organizations', organizationRoutes);
 router.use('/invitations', invitationRoutes);
 router.use('/teams', teamRoutes);
+router.use('/chat', chatRoutes);
 
 export default router;
