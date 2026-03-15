@@ -30,7 +30,7 @@ export async function listTasks(orgId, { clientId, status, dueBefore, dueAfter, 
 }
 
 export async function createTask(orgId, userId, taskData) {
-  const { client_id, campaign_id, title, description, task_type, assigned_to, assigned_to_user_id, due_date } = taskData;
+  const { client_id, campaign_id, title, description, task_type, assigned_to, assigned_to_user_id, due_date, priority, subtasks } = taskData;
   if (!client_id || !title) throw new ApiError(400, 'client_id and title are required');
 
   // Verify client ownership
@@ -55,6 +55,8 @@ export async function createTask(orgId, userId, taskData) {
       assigned_to: assigned_to || null,
       assigned_to_user_id: assigned_to_user_id || null,
       due_date: due_date || null,
+      priority: priority || 'none',
+      subtasks: subtasks || [],
     })
     .select('*, clients(name, brand_color), campaigns(name)')
     .single();
@@ -72,7 +74,7 @@ export async function updateTask(orgId, taskId, updates) {
     .single();
   if (findErr || !existing) throw new ApiError(404, 'Task not found');
 
-  const allowed = ['title', 'description', 'task_type', 'status', 'assigned_to', 'assigned_to_user_id', 'due_date', 'campaign_id', 'my_day_date'];
+  const allowed = ['title', 'description', 'task_type', 'status', 'assigned_to', 'assigned_to_user_id', 'due_date', 'campaign_id', 'my_day_date', 'priority', 'subtasks'];
   const filtered = Object.fromEntries(
     Object.entries(updates).filter(([k]) => allowed.includes(k))
   );
