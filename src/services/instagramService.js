@@ -115,6 +115,12 @@ export async function fetchIgMedia(igUserId, since) {
     const data = await metaFetch(url, page === 0 ? params : {});
     const items = data.data || [];
 
+    console.log(`[IG] Media fetch page ${page}: ${items.length} items returned for IG user ${igUserId}`);
+
+    if (items.length === 0 && page === 0) {
+      console.warn(`[IG] No media returned from API for IG user ${igUserId}. Response keys: ${Object.keys(data).join(', ')}`);
+    }
+
     for (const item of items) {
       const itemDate = new Date(item.timestamp);
       if (since && itemDate < new Date(since)) {
@@ -125,11 +131,10 @@ export async function fetchIgMedia(igUserId, since) {
 
     // Check for next page
     if (data.paging?.next) {
-      // Extract the path from the full URL for metaFetch
       const nextUrl = new URL(data.paging.next);
-      url = nextUrl.pathname.replace('/v19.0', '');
+      // Strip any API version prefix (v19.0, v21.0, etc.)
+      url = nextUrl.pathname.replace(/\/v\d+\.\d+/, '');
       params = {};
-      // Carry over the cursor params
       for (const [k, v] of nextUrl.searchParams) {
         if (k !== 'access_token') params[k] = v;
       }
@@ -253,6 +258,7 @@ export async function syncClientInstagram(clientId) {
 
   // 6. Fetch recent media
   const media = await fetchIgMedia(igUserId, since);
+  console.log(`[IG] Fetched ${media.length} media items for client ${clientId} (since ${since})`);
 
   // 7. Fetch per-media insights and upsert
   let mediaSynced = 0;
