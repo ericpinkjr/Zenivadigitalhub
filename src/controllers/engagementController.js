@@ -60,6 +60,30 @@ export async function getStats(req, res, next) {
   } catch (e) { next(e); }
 }
 
+export async function likeComment(req, res, next) {
+  try {
+    const { commentId } = req.params;
+    const { clientId } = req.body;
+    if (!clientId) {
+      return res.status(400).json({ message: 'clientId is required' });
+    }
+    const data = await engagementService.likeComment(req.org.id, clientId, commentId);
+    res.json(data);
+  } catch (e) { next(e); }
+}
+
+export async function draftReply(req, res, next) {
+  try {
+    const { commentId } = req.params;
+    const { clientId } = req.body;
+    if (!clientId) {
+      return res.status(400).json({ message: 'clientId is required' });
+    }
+    const data = await engagementService.draftReply(req.org.id, clientId, commentId);
+    res.json(data);
+  } catch (e) { next(e); }
+}
+
 // ── Global (all-client) endpoints ──
 
 export async function syncAllComments(req, res, next) {

@@ -5,6 +5,8 @@ import {
   listComments,
   replyToComment,
   hideComment,
+  likeComment,
+  draftReply,
   getStats,
   syncAllComments,
   listAllComments,
@@ -24,6 +26,8 @@ router.post('/:clientId/sync', syncComments);
 router.get('/:clientId/comments', listComments);
 router.post('/comments/:commentId/reply', replyToComment);
 router.post('/comments/:commentId/hide', hideComment);
+router.post('/comments/:commentId/like', likeComment);
+router.post('/comments/:commentId/draft', draftReply);
 router.get('/:clientId/stats', getStats);
 
 export default router;

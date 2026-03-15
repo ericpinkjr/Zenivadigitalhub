@@ -1,6 +1,10 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { metaFetch, metaPost, asyncPool } from './metaService.js';
 import { ApiError } from '../utils/apiError.js';
+import Anthropic from '@anthropic-ai/sdk';
+import { ANTHROPIC_API_KEY } from '../config/env.js';
+
+const anthropic = ANTHROPIC_API_KEY ? new Anthropic({ apiKey: ANTHROPIC_API_KEY }) : null;
 
 /**
  * Get the Facebook page connection for a client (needed for IG comment replies).
@@ -371,6 +375,103 @@ export async function hideComment(orgId, clientId, commentId) {
     .eq('comment_id', commentId);
 
   return { hidden: true };
+}
+
+/**
+ * Like a comment as the page on Instagram.
+ */
+export async function likeComment(orgId, clientId, commentId) {
+  const { error: clientErr } = await supabaseAdmin
+    .from('clients')
+    .select('id')
+    .eq('id', clientId)
+    .eq('org_id', orgId)
+    .single();
+  if (clientErr) throw new ApiError(404, 'Client not found');
+
+  const conn = await getPageConnection(clientId);
+  if (!conn || !conn.page_access_token) {
+    throw new ApiError(400, 'No Instagram page connection found');
+  }
+
+  // Like via Meta API (POST /{comment_id}/likes with page token)
+  await metaPost(`/${commentId}/likes`, conn.page_access_token, {});
+
+  return { liked: true };
+}
+
+/**
+ * Use Claude to draft a reply based on the client's brand voice.
+ */
+export async function draftReply(orgId, clientId, commentId) {
+  if (!anthropic) {
+    throw new ApiError(503, 'AI service not configured');
+  }
+
+  // Get client info for brand voice
+  const { data: client, error: clientErr } = await supabaseAdmin
+    .from('clients')
+    .select('name, brand_voice_notes, industry, target_audience, ig_handle')
+    .eq('id', clientId)
+    .eq('org_id', orgId)
+    .single();
+  if (clientErr || !client) throw new ApiError(404, 'Client not found');
+
+  // Get the comment text
+  const { data: comment, error: commentErr } = await supabaseAdmin
+    .from('social_comments')
+    .select('text, username, media_id')
+    .eq('client_id', clientId)
+    .eq('comment_id', commentId)
+    .single();
+  if (commentErr || !comment) throw new ApiError(404, 'Comment not found');
+
+  // Try to get the post caption for context
+  let postCaption = '';
+  if (comment.media_id) {
+    const { data: post } = await supabaseAdmin
+      .from('ig_media_metrics')
+      .select('caption')
+      .eq('client_id', clientId)
+      .eq('ig_media_id', comment.media_id)
+      .maybeSingle();
+    postCaption = post?.caption || '';
+  }
+
+  const systemPrompt = `You are a social media community manager replying to Instagram comments on behalf of "${client.name}".
+
+BRAND VOICE:
+${client.brand_voice_notes || 'Friendly, professional, and approachable.'}
+
+${client.industry ? `INDUSTRY: ${client.industry}` : ''}
+${client.target_audience ? `TARGET AUDIENCE: ${client.target_audience}` : ''}
+${client.ig_handle ? `INSTAGRAM HANDLE: @${client.ig_handle}` : ''}
+
+RULES:
+- Keep replies short (1-2 sentences max) — this is Instagram, not an email
+- Match the brand's tone and personality
+- Be warm, genuine, and human — never robotic
+- Use emojis sparingly and only if it fits the brand
+- If the comment is positive, acknowledge and appreciate it
+- If it's a question, answer helpfully
+- If it's negative, respond gracefully and professionally
+- Never be defensive or dismissive
+- Do NOT use hashtags in replies`;
+
+  const userMessage = `${postCaption ? `POST CAPTION: "${postCaption}"\n\n` : ''}COMMENT by @${comment.username || 'someone'}: "${comment.text}"
+
+Write a reply to this comment. Return ONLY the reply text, nothing else.`;
+
+  const response = await anthropic.messages.create({
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 200,
+    system: systemPrompt,
+    messages: [{ role: 'user', content: userMessage }],
+  });
+
+  const draft = response.content[0]?.text?.trim() || '';
+
+  return { draft };
 }
 
 /**
