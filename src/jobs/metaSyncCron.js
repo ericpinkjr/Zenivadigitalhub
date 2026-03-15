@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { supabaseAdmin } from '../config/supabase.js';
 import { syncClientMeta } from '../services/metaService.js';
 import { syncClientInstagram } from '../services/instagramService.js';
+import { syncCommentsForClient } from '../services/engagementService.js';
 import { META_ACCESS_TOKEN } from '../config/env.js';
 
 /**
@@ -79,6 +80,24 @@ async function runDailySync(label) {
       await logSync(client.id, 'instagram', 'cron', 'error', {
         error: err.message,
       }, igStart);
+    }
+
+    // Sync social comments
+    const commentStart = new Date().toISOString();
+    try {
+      const commentResult = await syncCommentsForClient(client.id);
+      if (!commentResult.skipped) {
+        console.log(`[CRON] Synced comments for ${client.name}: ${commentResult.comments_synced} comments from ${commentResult.posts_checked} posts`);
+        await logSync(client.id, 'comments', 'cron', 'success', {
+          comments_synced: commentResult.comments_synced,
+          posts_checked: commentResult.posts_checked,
+        }, commentStart);
+      }
+    } catch (err) {
+      console.error(`[CRON] Comment sync failed for ${client.name}:`, err.message);
+      await logSync(client.id, 'comments', 'cron', 'error', {
+        error: err.message,
+      }, commentStart);
     }
   }
 
