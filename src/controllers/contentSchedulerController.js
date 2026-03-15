@@ -125,3 +125,12 @@ export async function getCalendar(req, res, next) {
     res.json(data);
   } catch (e) { next(e); }
 }
+
+// ── Instagram Grid Preview ──
+
+export async function getInstagramGrid(req, res, next) {
+  try {
+    const data = await svc.getInstagramGrid(req.org.id, req.params.clientId);
+    res.json(data);
+  } catch (e) { next(e); }
+}

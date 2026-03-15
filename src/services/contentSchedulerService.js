@@ -483,3 +483,78 @@ export async function processScheduledPosts() {
 
   return { processed, errors: errorCount };
 }
+
+// ═══════════════════════════════════════════
+// Instagram Grid Preview
+// ═══════════════════════════════════════════
+
+export async function getInstagramGrid(orgId, clientId) {
+  // 1. Find the connected Facebook page that has an IG business account for this client
+  const { data: connections } = await supabaseAdmin
+    .from('page_connections')
+    .select('*')
+    .eq('org_id', orgId)
+    .eq('client_id', clientId)
+    .eq('platform', 'facebook')
+    .not('ig_business_account_id', 'is', null)
+    .limit(1);
+
+  const fbConn = connections?.[0];
+  if (!fbConn || !fbConn.ig_business_account_id) {
+    return { live: [], scheduled: [], ig_username: null };
+  }
+
+  // 2. Fetch live IG media grid via Graph API (using page access token)
+  let liveMedia = [];
+  try {
+    const igData = await metaFetch(`/${fbConn.ig_business_account_id}/media`, {
+      fields: 'id,media_type,media_url,thumbnail_url,timestamp,caption,permalink',
+      limit: '18',
+      access_token: fbConn.page_access_token,
+    });
+    liveMedia = (igData.data || []).map(m => ({
+      id: m.id,
+      media_type: m.media_type,                       // IMAGE, VIDEO, CAROUSEL_ALBUM
+      media_url: m.media_url || m.thumbnail_url || null,
+      thumbnail_url: m.thumbnail_url || m.media_url || null,
+      timestamp: m.timestamp,
+      caption: m.caption || '',
+      permalink: m.permalink,
+    }));
+  } catch (err) {
+    console.error('[IG_GRID] Failed to fetch live media:', err.message);
+  }
+
+  // 3. Fetch IG username / profile pic
+  let igUsername = null;
+  let igProfilePic = null;
+  try {
+    const profile = await metaFetch(`/${fbConn.ig_business_account_id}`, {
+      fields: 'username,profile_picture_url',
+      access_token: fbConn.page_access_token,
+    });
+    igUsername = profile.username || null;
+    igProfilePic = profile.profile_picture_url || null;
+  } catch {}
+
+  // 4. Fetch scheduled posts targeting Instagram for this client
+  const { data: scheduledPosts } = await supabaseAdmin
+    .from('social_posts')
+    .select('id, caption, media_urls, scheduled_at, status')
+    .eq('org_id', orgId)
+    .eq('client_id', clientId)
+    .in('status', ['scheduled', 'draft'])
+    .contains('platforms', '["instagram"]')
+    .order('scheduled_at', { ascending: true })
+    .limit(9);
+
+  const scheduled = (scheduledPosts || []).map(p => ({
+    id: p.id,
+    caption: p.caption || '',
+    media_url: Array.isArray(p.media_urls) && p.media_urls.length > 0 ? p.media_urls[0] : null,
+    scheduled_at: p.scheduled_at,
+    status: p.status,
+  }));
+
+  return { live: liveMedia, scheduled, ig_username: igUsername, ig_profile_pic: igProfilePic };
+}

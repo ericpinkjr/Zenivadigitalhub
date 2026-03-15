@@ -29,4 +29,7 @@ router.post('/posts/:postId/publish', auth, ctrl.publishPost);
 // ── Calendar ──
 router.get('/calendar', auth, ctrl.getCalendar);
 
+// ── Instagram Grid Preview ──
+router.get('/instagram-grid/:clientId', auth, ctrl.getInstagramGrid);
+
 export default router;
