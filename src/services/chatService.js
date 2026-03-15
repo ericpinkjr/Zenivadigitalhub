@@ -1,6 +1,28 @@
 import { supabaseAdmin } from '../config/supabase.js';
 import { ApiError } from '../utils/apiError.js';
 
+// ── Profile helper (FK goes to auth.users, not profiles — must fetch separately) ──
+
+async function fetchProfiles(userIds) {
+  if (!userIds.length) return {};
+  const unique = [...new Set(userIds)];
+  const { data } = await supabaseAdmin.from('profiles').select('id, full_name, avatar_url').in('id', unique);
+  return Object.fromEntries((data || []).map(p => [p.id, p]));
+}
+
+async function attachProfilesToMessages(messages) {
+  const senderIds = messages.map(m => m.sender_id).filter(Boolean);
+  const reactionUserIds = messages.flatMap(m => (m.chat_reactions || []).map(r => r.user_id));
+  const profileMap = await fetchProfiles([...senderIds, ...reactionUserIds]);
+  messages.forEach(m => {
+    m.profiles = profileMap[m.sender_id] || { id: m.sender_id, full_name: null, avatar_url: null };
+    (m.chat_reactions || []).forEach(r => {
+      r.profiles = profileMap[r.user_id] || { id: r.user_id, full_name: null, avatar_url: null };
+    });
+  });
+  return messages;
+}
+
 // ── Channels ──
 
 export async function listChannels(orgId, userId) {
@@ -15,21 +37,35 @@ export async function listChannels(orgId, userId) {
   const channelIds = memberships.map(m => m.channel_id);
   const readMap = Object.fromEntries(memberships.map(m => [m.channel_id, m]));
 
-  // Get channels with members + profiles
+  // Get channels with members (no profile join — FK goes to auth.users, not profiles)
   const { data: channels, error: chErr } = await supabaseAdmin
     .from('chat_channels')
-    .select('*, chat_channel_members(user_id, role, profiles:user_id(id, full_name, avatar_url))')
+    .select('*, chat_channel_members(user_id, role)')
     .in('id', channelIds)
     .eq('org_id', orgId)
     .eq('is_archived', false)
     .order('updated_at', { ascending: false });
   if (chErr) throw new ApiError(500, chErr.message);
 
+  // Batch-fetch profiles for all member user_ids
+  const allUserIds = [...new Set(channels.flatMap(ch => (ch.chat_channel_members || []).map(m => m.user_id)))];
+  const { data: profileRows } = allUserIds.length
+    ? await supabaseAdmin.from('profiles').select('id, full_name, avatar_url').in('id', allUserIds)
+    : { data: [] };
+  const profileMap = Object.fromEntries((profileRows || []).map(p => [p.id, p]));
+
+  // Attach profiles to members
+  channels.forEach(ch => {
+    (ch.chat_channel_members || []).forEach(m => {
+      m.profiles = profileMap[m.user_id] || { id: m.user_id, full_name: null, avatar_url: null };
+    });
+  });
+
   // Get last message for each channel
   const lastMessages = await Promise.all(channelIds.map(async (cid) => {
     const { data } = await supabaseAdmin
       .from('chat_messages')
-      .select('id, content, message_type, sender_id, created_at, profiles:sender_id(full_name)')
+      .select('id, content, message_type, sender_id, created_at')
       .eq('channel_id', cid)
       .is('parent_message_id', null)
       .order('created_at', { ascending: false })
@@ -38,6 +74,15 @@ export async function listChannels(orgId, userId) {
     return [cid, data];
   }));
   const lastMsgMap = Object.fromEntries(lastMessages);
+
+  // Attach sender profiles to last messages
+  const lastMsgSenderIds = Object.values(lastMsgMap).filter(Boolean).map(m => m.sender_id);
+  if (lastMsgSenderIds.length) {
+    const senderProfiles = await fetchProfiles(lastMsgSenderIds);
+    Object.values(lastMsgMap).filter(Boolean).forEach(m => {
+      m.profiles = senderProfiles[m.sender_id] || { id: m.sender_id, full_name: null, avatar_url: null };
+    });
+  }
 
   // Get unread counts
   const unreadCounts = await Promise.all(memberships.map(async (m) => {
@@ -180,11 +225,21 @@ export async function getChannel(orgId, userId, channelId) {
 
   const { data, error } = await supabaseAdmin
     .from('chat_channels')
-    .select('*, chat_channel_members(user_id, role, joined_at, profiles:user_id(id, full_name, avatar_url))')
+    .select('*, chat_channel_members(user_id, role, joined_at)')
     .eq('id', channelId)
     .eq('org_id', orgId)
     .single();
   if (error) throw new ApiError(404, 'Channel not found');
+
+  // Attach profiles to members
+  const memberIds = (data.chat_channel_members || []).map(m => m.user_id);
+  if (memberIds.length) {
+    const { data: profiles } = await supabaseAdmin.from('profiles').select('id, full_name, avatar_url').in('id', memberIds);
+    const pMap = Object.fromEntries((profiles || []).map(p => [p.id, p]));
+    data.chat_channel_members.forEach(m => {
+      m.profiles = pMap[m.user_id] || { id: m.user_id, full_name: null, avatar_url: null };
+    });
+  }
   return data;
 }
 
@@ -293,9 +348,8 @@ export async function getMessages(orgId, userId, channelId, { before, limit = 50
     .from('chat_messages')
     .select(`
       *,
-      profiles:sender_id(id, full_name, avatar_url),
       chat_message_attachments(*),
-      chat_reactions(id, emoji, user_id, profiles:user_id(full_name)),
+      chat_reactions(id, emoji, user_id),
       chat_mentions(id, mention_type, mention_id)
     `)
     .eq('channel_id', channelId)
@@ -304,7 +358,6 @@ export async function getMessages(orgId, userId, channelId, { before, limit = 50
     .limit(limit);
 
   if (before) {
-    // Get the created_at of the cursor message
     const { data: cursorMsg } = await supabaseAdmin
       .from('chat_messages')
       .select('created_at')
@@ -318,7 +371,10 @@ export async function getMessages(orgId, userId, channelId, { before, limit = 50
   const { data, error } = await query;
   if (error) throw new ApiError(500, error.message);
 
-  // Get thread reply counts for messages that have replies
+  // Attach profiles to messages and reactions
+  await attachProfilesToMessages(data);
+
+  // Get thread reply counts
   const msgIds = data.map(m => m.id);
   if (msgIds.length) {
     const { data: replyCounts } = await supabaseAdmin
@@ -333,7 +389,7 @@ export async function getMessages(orgId, userId, channelId, { before, limit = 50
     data.forEach(m => { m.reply_count = countMap[m.id] || 0; });
   }
 
-  return data.reverse(); // Return in chronological order
+  return data.reverse();
 }
 
 export async function sendMessage(orgId, userId, channelId, { content, parentMessageId, mentions, attachmentIds }) {
@@ -356,9 +412,13 @@ export async function sendMessage(orgId, userId, channelId, { content, parentMes
   const { data: message, error } = await supabaseAdmin
     .from('chat_messages')
     .insert(messageData)
-    .select('*, profiles:sender_id(id, full_name, avatar_url)')
+    .select('*')
     .single();
   if (error) throw new ApiError(400, error.message);
+
+  // Attach sender profile
+  const pMap = await fetchProfiles([userId]);
+  message.profiles = pMap[userId] || { id: userId, full_name: null, avatar_url: null };
 
   // Link attachments to message
   if (attachmentIds?.length) {
@@ -409,9 +469,12 @@ export async function editMessage(userId, messageId, content) {
     .from('chat_messages')
     .update({ content, is_edited: true, edited_at: new Date().toISOString() })
     .eq('id', messageId)
-    .select('*, profiles:sender_id(id, full_name, avatar_url)')
+    .select('*')
     .single();
   if (error) throw new ApiError(400, error.message);
+
+  const pMap = await fetchProfiles([data.sender_id]);
+  data.profiles = pMap[data.sender_id] || { id: data.sender_id, full_name: null, avatar_url: null };
   return data;
 }
 
@@ -461,9 +524,8 @@ export async function getThread(userId, messageId, { limit = 50 } = {}) {
     .from('chat_messages')
     .select(`
       *,
-      profiles:sender_id(id, full_name, avatar_url),
       chat_message_attachments(*),
-      chat_reactions(id, emoji, user_id, profiles:user_id(full_name)),
+      chat_reactions(id, emoji, user_id),
       chat_mentions(id, mention_type, mention_id)
     `)
     .eq('id', messageId)
@@ -477,15 +539,17 @@ export async function getThread(userId, messageId, { limit = 50 } = {}) {
     .from('chat_messages')
     .select(`
       *,
-      profiles:sender_id(id, full_name, avatar_url),
       chat_message_attachments(*),
-      chat_reactions(id, emoji, user_id, profiles:user_id(full_name)),
+      chat_reactions(id, emoji, user_id),
       chat_mentions(id, mention_type, mention_id)
     `)
     .eq('parent_message_id', messageId)
     .order('created_at', { ascending: true })
     .limit(limit);
   if (rErr) throw new ApiError(500, rErr.message);
+
+  // Attach profiles to parent + replies
+  await attachProfilesToMessages([parent, ...replies]);
 
   return { parent, replies };
 }
@@ -571,11 +635,15 @@ export async function listPins(userId, channelId) {
     .from('chat_pins')
     .select(`
       *,
-      chat_messages(*, profiles:sender_id(id, full_name, avatar_url))
+      chat_messages(*)
     `)
     .eq('channel_id', channelId)
     .order('created_at', { ascending: false });
   if (error) throw new ApiError(500, error.message);
+
+  // Attach profiles to pinned messages
+  const pinnedMsgs = data.filter(p => p.chat_messages).map(p => p.chat_messages);
+  if (pinnedMsgs.length) await attachProfilesToMessages(pinnedMsgs);
   return data;
 }
 
@@ -671,7 +739,6 @@ export async function searchMessages(orgId, userId, query, channelId) {
     .from('chat_messages')
     .select(`
       *,
-      profiles:sender_id(id, full_name, avatar_url),
       chat_channels!inner(id, name, type)
     `)
     .in('channel_id', searchIds)
@@ -679,6 +746,8 @@ export async function searchMessages(orgId, userId, query, channelId) {
     .order('created_at', { ascending: false })
     .limit(50);
   if (error) throw new ApiError(500, error.message);
+
+  await attachProfilesToMessages(data);
   return data;
 }
 
