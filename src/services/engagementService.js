@@ -20,8 +20,25 @@ async function getPageConnection(clientId) {
 }
 
 /**
+ * Fetch recent media IDs directly from the IG business account via Meta API.
+ * This makes the comment sync independent of ig_media_metrics.
+ */
+async function fetchRecentMediaFromApi(igBusinessAccountId) {
+  try {
+    const data = await metaFetch(`/${igBusinessAccountId}/media`, {
+      fields: 'id',
+      limit: '20',
+    });
+    return (data.data || []).map(m => m.id);
+  } catch (err) {
+    console.error(`[COMMUNITY] Failed to fetch media from API:`, err.message);
+    return [];
+  }
+}
+
+/**
  * Sync comments from Instagram for a client's recent posts.
- * Fetches the 20 most recent IG posts and pulls their comments.
+ * Fetches media directly from Meta API so it works independently of ig_media_metrics.
  */
 export async function syncCommentsForClient(clientId) {
   // Get the page connection for IG business account ID
@@ -34,18 +51,26 @@ export async function syncCommentsForClient(clientId) {
   const igBusinessAccountId = conn.ig_business_account_id;
   const orgId = conn.org_id;
 
-  // Get the 20 most recent synced posts for this client
-  const { data: posts, error: postsErr } = await supabaseAdmin
-    .from('ig_media_metrics')
-    .select('ig_media_id')
-    .eq('client_id', clientId)
-    .order('timestamp', { ascending: false })
-    .limit(20);
+  // Fetch recent media directly from IG API (no dependency on ig_media_metrics)
+  let mediaIds = await fetchRecentMediaFromApi(igBusinessAccountId);
 
-  if (postsErr || !posts || posts.length === 0) {
-    console.log(`[COMMUNITY] No synced posts for client ${clientId}`);
+  // Fallback: if API fetch returned nothing, try the local DB
+  if (mediaIds.length === 0) {
+    const { data: dbPosts } = await supabaseAdmin
+      .from('ig_media_metrics')
+      .select('ig_media_id')
+      .eq('client_id', clientId)
+      .order('timestamp', { ascending: false })
+      .limit(20);
+    mediaIds = (dbPosts || []).map(p => p.ig_media_id);
+  }
+
+  if (mediaIds.length === 0) {
+    console.log(`[COMMUNITY] No media found for client ${clientId}`);
     return { comments_synced: 0, posts_checked: 0 };
   }
+
+  const posts = mediaIds.map(id => ({ ig_media_id: id }));
 
   let totalSynced = 0;
 
